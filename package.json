@@ -1,0 +1,28 @@
+{
+  "name": "nexusmed",
+  "version": "1.0.0",
+  "description": "sistema para clínica médica que integre CRM (gestão de relacionamento com pacientes), ERP (gestão administrativa e financeira) e Prontuário Eletrônico)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adrianois/NexusMed.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/adrianois/NexusMed/issues"
+  },
+  "homepage": "https://github.com/adrianois/NexusMed#readme",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.98.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "pg": "^8.19.0"
+  }
+}
