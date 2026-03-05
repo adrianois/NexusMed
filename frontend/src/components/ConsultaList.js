@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { getConsultas, postData, fetchData } from '../services/api'
 
 function ConsultaList() {
   const [consultas, setConsultas] = useState([])
@@ -6,9 +7,8 @@ function ConsultaList() {
   const [form, setForm] = useState({})
 
   const carregarConsultas = async () => {
-    const response = await fetch('/consultas')
-    const data = await response.json()
-    setConsultas(data)
+    const result = await getConsultas()
+    setConsultas(result.consultas || [])
   }
 
   useEffect(() => {
@@ -17,7 +17,7 @@ function ConsultaList() {
 
   const excluirConsulta = async (id) => {
     if (window.confirm('Deseja realmente excluir esta consulta?')) {
-      await fetch(`/consultas/${id}`, { method: 'DELETE' })
+      await fetchData(`/consultas/${id}`, { method: 'DELETE' })
       carregarConsultas()
     }
   }
@@ -28,11 +28,7 @@ function ConsultaList() {
   }
 
   const salvarEdicao = async () => {
-    await fetch(`http://localhost:3000/consultas/${editando}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form)
-    })
+    await postData(`/consultas/${editando}`, form, 'PUT')
     setEditando(null)
     carregarConsultas()
   }
@@ -61,8 +57,20 @@ function ConsultaList() {
               <td>{c.paciente_id}</td>
               <td>{c.medico_id}</td>
               <td>{c.data_consulta}</td>
-              <td>{editando === c.id ? <input name="motivo" value={form.motivo} onChange={handleChange}/> : c.motivo}</td>
-              <td>{editando === c.id ? <input name="observacoes" value={form.observacoes} onChange={handleChange}/> : c.observacoes}</td>
+              <td>
+                {editando === c.id ? (
+                  <input name="motivo" value={form.motivo} onChange={handleChange}/>
+                ) : (
+                  c.motivo
+                )}
+              </td>
+              <td>
+                {editando === c.id ? (
+                  <input name="observacoes" value={form.observacoes} onChange={handleChange}/>
+                ) : (
+                  c.observacoes
+                )}
+              </td>
               <td>
                 {editando === c.id ? (
                   <>

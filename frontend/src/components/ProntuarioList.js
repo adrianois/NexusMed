@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react'
+import { getProntuarios, fetchData } from '../services/api'
 
 function ProntuarioList() {
   const [prontuarios, setProntuarios] = useState([])
 
   const carregarProntuarios = async () => {
-    const response = await fetch('/prontuarios')
-    const data = await response.json()
-    setProntuarios(data)
+    const result = await getProntuarios()
+    setProntuarios(result.prontuarios || [])
   }
 
   useEffect(() => {
@@ -15,7 +15,7 @@ function ProntuarioList() {
 
   const excluirProntuario = async (id) => {
     if (window.confirm('Deseja realmente excluir este prontuário?')) {
-      await fetch(`/prontuarios/${id}`, { method: 'DELETE' })
+      await fetchData(`/prontuarios/${id}`, { method: 'DELETE' })
       carregarProntuarios()
     }
   }

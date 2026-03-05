@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { getPacientes, postData, fetchData } from '../services/api'
 
 function PacienteList() {
   const [pacientes, setPacientes] = useState([])
@@ -6,9 +7,8 @@ function PacienteList() {
   const [form, setForm] = useState({})
 
   const carregarPacientes = async () => {
-    const response = await fetch('/pacientes')
-    const data = await response.json()
-    setPacientes(data)
+    const result = await getPacientes()
+    setPacientes(result.pacientes || [])
   }
 
   useEffect(() => {
@@ -17,7 +17,7 @@ function PacienteList() {
 
   const excluirPaciente = async (id) => {
     if (window.confirm('Deseja realmente excluir este paciente?')) {
-      await fetch(`/pacientes/${id}`, { method: 'DELETE' })
+      await fetchData(`/pacientes/${id}`, { method: 'DELETE' })
       carregarPacientes()
     }
   }
@@ -28,11 +28,7 @@ function PacienteList() {
   }
 
   const salvarEdicao = async () => {
-    await fetch(`/pacientes/${editando}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form)
-    })
+    await postData(`/pacientes/${editando}`, form, 'PUT')
     setEditando(null)
     carregarPacientes()
   }
@@ -59,12 +55,36 @@ function PacienteList() {
         <tbody>
           {pacientes.map(p => (
             <tr key={p.id}>
-              <td>{editando === p.id ? <input name="nome" value={form.nome} onChange={handleChange}/> : p.nome}</td>
+              <td>
+                {editando === p.id ? (
+                  <input name="nome" value={form.nome} onChange={handleChange}/>
+                ) : (
+                  p.nome
+                )}
+              </td>
               <td>{p.cpf}</td>
               <td>{p.data_nascimento}</td>
-              <td>{editando === p.id ? <input name="telefone" value={form.telefone} onChange={handleChange}/> : p.telefone}</td>
-              <td>{editando === p.id ? <input name="email" value={form.email} onChange={handleChange}/> : p.email}</td>
-              <td>{editando === p.id ? <input name="endereco" value={form.endereco} onChange={handleChange}/> : p.endereco}</td>
+              <td>
+                {editando === p.id ? (
+                  <input name="telefone" value={form.telefone} onChange={handleChange}/>
+                ) : (
+                  p.telefone
+                )}
+              </td>
+              <td>
+                {editando === p.id ? (
+                  <input name="email" value={form.email} onChange={handleChange}/>
+                ) : (
+                  p.email
+                )}
+              </td>
+              <td>
+                {editando === p.id ? (
+                  <input name="endereco" value={form.endereco} onChange={handleChange}/>
+                ) : (
+                  p.endereco
+                )}
+              </td>
               <td>
                 {editando === p.id ? (
                   <>
