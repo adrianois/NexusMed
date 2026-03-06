@@ -1,113 +1,179 @@
-import express from 'express'
-import { createClient } from '@supabase/supabase-js'
-import cors from 'cors'
 import dotenv from 'dotenv'
+dotenv.config({ path: './.env' })
 
-dotenv.config()
+import express from 'express'
+import cors from 'cors'
+import bodyParser from 'body-parser'
+import { createClient } from '@supabase/supabase-js'
+import bcrypt from 'bcrypt'
+import jwt from 'jsonwebtoken'
+
+// Debug variáveis
+console.log("DEBUG SUPABASE_URL:", process.env.SUPABASE_URL)
+console.log("DEBUG SUPABASE_KEY:", process.env.SUPABASE_KEY ? "OK" : "MISSING")
 
 const app = express()
-app.use(express.json())
+const port = process.env.PORT || 4000
+
 app.use(cors())
+app.use(bodyParser.json())
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_PUBLISHABLE_KEY
-)
+// Conexão Supabase
+const supabaseUrl = process.env.SUPABASE_URL
+const supabaseKey = process.env.SUPABASE_KEY
+const jwtSecret = process.env.JWT_SECRET || "segredo_super_seguro"
 
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error("⚠️ SUPABASE_URL e SUPABASE_KEY não estão definidos no .env")
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey)
+
+// ---------------------- Middleware ----------------------
+function autenticar(req, res, next) {
+  const authHeader = req.headers['authorization']
+  const token = authHeader && authHeader.split(' ')[1]
+  if (!token) return res.sendStatus(401)
+
+  jwt.verify(token, jwtSecret, (err, usuario) => {
+    if (err) return res.sendStatus(403)
+    req.usuario = usuario
+    next()
+  })
+}
+
+// ---------------------- Rotas iniciais ----------------------
 app.get('/', (req, res) => {
-  res.json({ message: 'Bem-vindo ao NexusMed API', version: '1.0.0', endpoints: ['/pacientes'] })
+  res.send('🚀 API NexusMed está rodando!')
 })
 
-app.get('/pacientes', async (req, res) => {
+app.get('/health', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('pacientes').select('id').limit(1)
+    if (error) return res.status(500).json({ status: 'error', message: 'Falha ao conectar ao Supabase' })
+    return res.json({ status: 'ok', message: 'API NexusMed conectada ao Supabase', supabase: data ? 'conectado' : 'sem dados' })
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: 'Erro interno' })
+  }
+})
+
+// ---------------------- Autenticação ----------------------
+app.post('/auth/register', async (req, res) => {
+  const { nome, email, senha } = req.body
+  const senha_hash = await bcrypt.hash(senha, 10)
+
+  const { data, error } = await supabase
+    .from('usuarios')
+    .insert([{ nome, email, senha_hash }])
+    .select()
+
+  if (error) return res.status(400).json({ error: error.message })
+  return res.status(201).json({ usuario: data[0] })
+})
+
+app.post('/auth/login', async (req, res) => {
+  const { email, senha } = req.body
+
+  const { data: usuarios } = await supabase
+    .from('usuarios')
+    .select('*')
+    .eq('email', email)
+    .limit(1)
+
+  if (!usuarios || usuarios.length === 0) return res.status(401).json({ error: 'Usuário não encontrado' })
+
+  const usuario = usuarios[0]
+  const senhaValida = await bcrypt.compare(senha, usuario.senha_hash)
+  if (!senhaValida) return res.status(401).json({ error: 'Senha inválida' })
+
+  // Buscar clínicas vinculadas
+  const { data: clinicas } = await supabase
+    .from('usuarios_clinicas')
+    .select('clinica_id')
+    .eq('usuario_id', usuario.id)
+
+  const token = jwt.sign(
+    { usuario_id: usuario.id, clinicas: clinicas.map(c => c.clinica_id) },
+    jwtSecret,
+    { expiresIn: '8h' }
+  )
+
+  return res.json({ token })
+})
+
+// ---------------------- PACIENTES ----------------------
+app.post('/pacientes', autenticar, async (req, res) => {
+  const { nome, cpf, data_nascimento, telefone, email, endereco } = req.body
+  const { data, error } = await supabase
+    .from('pacientes')
+    .insert([{ nome, cpf, data_nascimento, telefone, email, endereco }])
+    .select()
+
+  if (error) return res.status(400).json({ error: error.message })
+  return res.status(201).json({ paciente: data[0] })
+})
+
+app.get('/pacientes', autenticar, async (req, res) => {
   const { data, error } = await supabase.from('pacientes').select('*')
-  if (error) return res.status(400).json(error)
-  res.json(data)
+  if (error) return res.status(400).json({ error: error.message })
+  return res.json({ pacientes: data || [] })
 })
 
-app.post('/pacientes', async (req, res) => {
-  const { error, data } = await supabase.from('pacientes').insert([req.body])
-  if (error) return res.status(400).json(error)
-  res.status(201).json({ message: 'Paciente criado com sucesso', data })
-})
-
-// CREATE - cadastrar consulta
-app.post('/consultas', async (req, res) => {
-  const { paciente_id, medico_id, data_consulta, motivo, observacoes } = req.body
+// ---------------------- CONSULTAS ----------------------
+app.post('/consultas', autenticar, async (req, res) => {
+  const { paciente_id, data_consulta, motivo, observacoes } = req.body
   const { data, error } = await supabase
     .from('consultas')
-    .insert([{ paciente_id, medico_id, data_consulta, motivo, observacoes }])
+    .insert([{ paciente_id, data_consulta, motivo, observacoes }])
+    .select()
 
-  if (error) return res.status(400).json(error)
-  res.status(201).json({ message: 'Consulta criada com sucesso', data })
+  if (error) return res.status(400).json({ error: error.message })
+  return res.status(201).json({ consulta: data[0] })
 })
 
-// READ - listar consultas
-app.get('/consultas', async (req, res) => {
+app.get('/consultas', autenticar, async (req, res) => {
   const { data, error } = await supabase.from('consultas').select('*')
-  if (error) return res.status(400).json(error)
-  res.json(data)
+  if (error) return res.status(400).json({ error: error.message })
+  return res.json({ consultas: data || [] })
 })
 
-// UPDATE - atualizar consulta
-app.put('/consultas/:id', async (req, res) => {
-  const { id } = req.params
-  const { motivo, observacoes, data_consulta } = req.body
-  const { data, error } = await supabase
-    .from('consultas')
-    .update({ motivo, observacoes, data_consulta })
-    .eq('id', id)
-
-  if (error) return res.status(400).json(error)
-  res.json(data)
-})
-
-// DELETE - remover consulta
-app.delete('/consultas/:id', async (req, res) => {
-  const { id } = req.params
-  const { data, error } = await supabase.from('consultas').delete().eq('id', id)
-
-  if (error) return res.status(400).json(error)
-  res.json(data)
-})
-
-// CREATE - cadastrar prontuário
-app.post('/prontuarios', async (req, res) => {
-  const { paciente_id, consulta_id, descricao, exames, prescricoes } = req.body
+// ---------------------- PRONTUÁRIOS ----------------------
+app.post('/prontuarios', autenticar, async (req, res) => {
+  const { paciente_id, descricao, data_registro } = req.body
   const { data, error } = await supabase
     .from('prontuarios')
-    .insert([{ paciente_id, consulta_id, descricao, exames, prescricoes }])
+    .insert([{ paciente_id, descricao, data_registro }])
+    .select()
 
-  if (error) return res.status(400).json(error)
-  res.status(201).json({ message: 'Prontuário criado com sucesso', data })
+  if (error) return res.status(400).json({ error: error.message })
+  return res.status(201).json({ prontuario: data[0] })
 })
 
-// READ - listar prontuários
-app.get('/prontuarios', async (req, res) => {
+app.get('/prontuarios', autenticar, async (req, res) => {
   const { data, error } = await supabase.from('prontuarios').select('*')
-  if (error) return res.status(400).json(error)
-  res.json(data)
+  if (error) return res.status(400).json({ error: error.message })
+  return res.json({ prontuarios: data || [] })
 })
 
-// UPDATE - atualizar prontuário
-app.put('/prontuarios/:id', async (req, res) => {
-  const { id } = req.params
-  const { descricao, exames, prescricoes } = req.body
+// ---------------------- CLÍNICAS ----------------------
+app.post('/clinicas', autenticar, async (req, res) => {
+  const { nome, endereco, telefone } = req.body
   const { data, error } = await supabase
-    .from('prontuarios')
-    .update({ descricao, exames, prescricoes })
-    .eq('id', id)
+    .from('clinicas')
+    .insert([{ nome, endereco, telefone }])
+    .select()
 
-  if (error) return res.status(400).json(error)
-  res.json(data)
+  if (error) return res.status(400).json({ error: error.message })
+  return res.status(201).json({ clinica: data[0] })
 })
 
-// DELETE - remover prontuário
-app.delete('/prontuarios/:id', async (req, res) => {
-  const { id } = req.params
-  const { data, error } = await supabase.from('prontuarios').delete().eq('id', id)
-
-  if (error) return res.status(400).json(error)
-  res.json(data)
+app.get('/clinicas', autenticar, async (req, res) => {
+  const { data, error } = await supabase.from('clinicas').select('*')
+  if (error) return res.status(400).json({ error: error.message })
+  return res.json({ clinicas: data || [] })
 })
 
-app.listen(3000, () => console.log('Servidor rodando na porta 3000'))
+// ---------------------- START SERVER ----------------------
+app.listen(port, () => {
+  console.log(`✅ Servidor rodando em http://localhost:${port}`)
+})

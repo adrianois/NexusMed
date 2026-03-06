@@ -1,0 +1,28 @@
+.sidebar {
+  position: fixed;
+  top: 60px; /* abaixo do header */
+  left: 0;
+  width: 220px;
+  height: 100%;
+  background: #343a40;
+  color: white;
+  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar a {
+  color: white;
+  text-decoration: none;
+  padding: 12px 20px;
+  font-size: 15px;
+  transition: background 0.3s ease;
+}
+
+.sidebar a:hover {
+  background: #495057;
+}
+
+.sidebar a.active {
+  background: #007bff;
+}

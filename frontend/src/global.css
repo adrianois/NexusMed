@@ -1,0 +1,68 @@
+/* Reset básico */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Fonte e cores padrão */
+body {
+  font-family: 'Arial', sans-serif;
+  background: #f0f2f5;
+  color: #333;
+  line-height: 1.6;
+}
+
+/* Links */
+a, button {
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+/* Botões padrão */
+button {
+  padding: 10px 15px;
+  border-radius: 6px;
+  border: none;
+  font-size: 14px;
+}
+
+button.primary {
+  background: #007bff;
+  color: white;
+}
+
+button.primary:hover {
+  background: #0056b3;
+}
+
+button.success {
+  background: #28a745;
+  color: white;
+}
+
+button.success:hover {
+  background: #1e7e34;
+}
+
+/* Inputs padrão */
+input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+input:focus {
+  border-color: #007bff;
+  outline: none;
+}
+
+/* Container genérico */
+.container {
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 20px;
+}

@@ -1,44 +1,40 @@
-const express = require('express')
-const cors = require('cors')
-require('dotenv').config()
+import express from "express"
+import dotenv from "dotenv"
+import cors from "cors"
+import sequelize from "./config/database.js"
+import authRoutes from "./routes/authRoutes.js"
 
-// Importa rotas
-const pacienteRoutes = require('./routes/pacientes')
-const consultaRoutes = require('./routes/consultas')
-const prontuarioRoutes = require('./routes/prontuarios')
-const clinicaRoutes = require('./routes/clinicas')
-const dashboardRoutes = require('./routes/dashboard')
-
-// Importa middleware de erros
-const errorHandler = require('./middleware/errorHandler')
+dotenv.config()
 
 const app = express()
-const PORT = process.env.PORT || 4000 // alterado para evitar conflito
 
-// Middlewares globais
-app.use(cors({
-  origin: '*',
-  methods: ['GET','POST','PUT','DELETE'],
-  allowedHeaders: ['Content-Type']
-}))
+// Middlewares
+app.use(cors())
 app.use(express.json())
 
-// Rotas principais
-app.use('/pacientes', pacienteRoutes)
-app.use('/consultas', consultaRoutes)
-app.use('/prontuarios', prontuarioRoutes)
-app.use('/clinicas', clinicaRoutes)
-app.use('/dashboard', dashboardRoutes)
+// Rotas
+app.use("/auth", authRoutes)
 
-// Rota raiz
-app.get('/', (req, res) => {
-  res.send('🚀 API NexusMed rodando com Supabase!')
-})
+// Teste de conexão com banco
+sequelize.authenticate()
+  .then(() => {
+    console.log("Conexão com banco estabelecida com sucesso.")
+  })
+  .catch(err => {
+    console.error("Erro ao conectar no banco:", err)
+  })
 
-// Middleware de tratamento de erros (sempre por último)
-app.use(errorHandler)
+// Sincronizar modelos (opcional: { force: true } recria tabelas)
+sequelize.sync()
+  .then(() => {
+    console.log("Modelos sincronizados com banco.")
+  })
+  .catch(err => {
+    console.error("Erro ao sincronizar modelos:", err)
+  })
 
-// Inicializa servidor
+// Inicializar servidor
+const PORT = process.env.PORT || 3000
 app.listen(PORT, () => {
-  console.log(`✅ Servidor rodando na porta ${PORT}`)
+  console.log(`Servidor rodando na porta ${PORT}`)
 })

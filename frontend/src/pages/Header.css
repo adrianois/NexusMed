@@ -1,0 +1,37 @@
+.header {
+  width: 100%;
+  background: #007bff;
+  color: white;
+  padding: 15px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+}
+
+.header h1 {
+  font-size: 20px;
+  margin: 0;
+}
+
+.header button {
+  background: #dc3545;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.header button:hover {
+  background: #a71d2a;
+}
+
+.dashboard-container {
+  margin-top: 80px; /* espaço para o header fixo */
+}
