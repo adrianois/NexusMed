@@ -11,7 +11,7 @@ export default function Consultas() {
   const [mostrarForm, setMostrarForm] = useState(false)
   const [salvando, setSalvando]       = useState(false)
   const [form, setForm] = useState({
-    paciente_id: "", data_consulta: "", motivo: "", observacoes: ""
+    paciente_id: "", data_consulta: "", horario: "", motivo: "", observacoes: ""
   })
 
   const carregarDados = () => {
@@ -35,13 +35,13 @@ export default function Consultas() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.paciente_id || !form.data_consulta || !form.motivo) {
-      return alert("Paciente, data e motivo são obrigatórios!")
+    if (!form.paciente_id || !form.data_consulta || !form.horario || !form.motivo) {
+      return alert("Paciente, data, horário e motivo são obrigatórios!")
     }
     setSalvando(true)
     try {
       await api.post("/consultas", form)
-      setForm({ paciente_id: "", data_consulta: "", motivo: "", observacoes: "" })
+      setForm({ paciente_id: "", data_consulta: "", horario: "", motivo: "", observacoes: "" })
       setMostrarForm(false)
       carregarDados()
     } catch (err) {
@@ -54,6 +54,12 @@ export default function Consultas() {
   const getNomePaciente = (paciente_id) => {
     const p = pacientes.find(pac => pac.id === paciente_id)
     return p ? p.nome : paciente_id
+  }
+
+  const formatarData = (data) => {
+    if (!data) return "-"
+    const [ano, mes, dia] = data.split("-")
+    return `${dia}/${mes}/${ano}`
   }
 
   return (
@@ -73,7 +79,7 @@ export default function Consultas() {
           <h3 className="inner-card-title">Agendar Nova Consulta</h3>
           <form onSubmit={handleSubmit} className="inner-form">
 
-            <div className="form-field">
+            <div className="form-field form-field--full">
               <label className="form-label">Paciente <span className="required">*</span></label>
               <select className="form-select" name="paciente_id"
                 value={form.paciente_id} onChange={handleChange} required>
@@ -88,6 +94,12 @@ export default function Consultas() {
               <label className="form-label">Data da Consulta <span className="required">*</span></label>
               <input className="form-input" type="date" name="data_consulta"
                 value={form.data_consulta} onChange={handleChange} required />
+            </div>
+
+            <div className="form-field">
+              <label className="form-label">Horário <span className="required">*</span></label>
+              <input className="form-input" type="time" name="horario"
+                value={form.horario} onChange={handleChange} required />
             </div>
 
             <div className="form-field form-field--full">
@@ -139,6 +151,7 @@ export default function Consultas() {
                   <tr>
                     <th>Paciente</th>
                     <th>Data</th>
+                    <th>Horário</th>
                     <th>Motivo</th>
                     <th>Observações</th>
                   </tr>
@@ -147,7 +160,8 @@ export default function Consultas() {
                   {consultas.map(c => (
                     <tr key={c.id}>
                       <td>{getNomePaciente(c.paciente_id)}</td>
-                      <td>{c.data_consulta}</td>
+                      <td>{formatarData(c.data_consulta)}</td>
+                      <td>{c.horario || "-"}</td>
                       <td>{c.motivo}</td>
                       <td>{c.observacoes || "-"}</td>
                     </tr>
