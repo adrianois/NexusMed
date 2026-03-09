@@ -23,17 +23,21 @@ function autenticar(req,res,next){
 function apenasAdmin(req,res,next){ if(req.usuario?.perfil!=='admin') return res.status(403).json({error:'Acesso restrito.'}); next() }
 function apenasGestor(req,res,next){ if(!['admin','gestor'].includes(req.usuario?.perfil)) return res.status(403).json({error:'Acesso restrito.'}); next() }
 
+// Normaliza data para yyyy-mm-dd independente do formato retornado pelo banco
+function normalizarData(valor) {
+  if (!valor) return null
+  return String(valor).substring(0, 10)
+}
+
 app.get('/', (req,res)=>res.send('🚀 API NexusMed rodando!'))
 app.get('/health', async (req,res)=>{
   try{ const {error}=await supabase.from('pacientes').select('id').limit(1); if(error) return res.status(500).json({status:'error'}); res.json({status:'ok'}) }catch{ res.status(500).json({status:'error'}) }
 })
 
-// Clínicas públicas
 app.get('/clinicas/publicas', async (req,res)=>{
   try{ const {data,error}=await supabase.from('clinicas').select('id,nome').eq('ativo',true).order('nome'); if(error) return res.status(500).json({error:error.message}); res.json(data||[]) }catch{ res.status(500).json({error:'Erro interno.'}) }
 })
 
-// AUTH
 app.post('/auth/register', async (req,res)=>{
   const {nome,email,senha,perfil:pSol,clinica_id}=req.body
   if (!nome||!email||!senha) return res.status(400).json({error:'Campos obrigatórios ausentes.'})
@@ -52,6 +56,7 @@ app.post('/auth/register', async (req,res)=>{
     res.status(201).json({message:'Usuário criado!',usuario:data[0]})
   }catch{res.status(500).json({error:'Erro interno.'})}
 })
+
 app.post('/auth/login', async (req,res)=>{
   const {email,senha}=req.body
   try{
@@ -117,10 +122,13 @@ app.patch('/gestor/usuarios/:id/aprovar', autenticar,apenasGestor, async (req,re
 
 // MÉDICOS
 app.get('/medicos', autenticar, async (req,res)=>{
-  let q=supabase.from('medicos').select('*').order('nome')
-  if(req.usuario.perfil!=='admin'&&req.usuario.clinica_id) q=q.eq('clinica_id',req.usuario.clinica_id)
-  const {data,error}=await q
-  if(error) return res.status(500).json({error:error.message}); res.json(data||[])
+  const clinica_id = req.usuario.clinica_id
+  const perfil     = req.usuario.perfil
+  let q = supabase.from('medicos').select('*').order('nome')
+  if (perfil !== 'admin' && clinica_id) q = q.eq('clinica_id', clinica_id)
+  const {data,error} = await q
+  if(error) return res.status(500).json({error:error.message})
+  res.json(data||[])
 })
 app.post('/medicos', autenticar, async (req,res)=>{
   const {nome,crm,especialidade,telefone,email,agenda}=req.body
@@ -134,18 +142,19 @@ app.patch('/medicos/:id', autenticar, async (req,res)=>{
   if(error) return res.status(400).json({error:error.message}); res.json(data[0])
 })
 app.delete('/medicos/:id', autenticar, async (req,res)=>{
-  // Verifica vínculos com consultas
   const {data:vinculos}=await supabase.from('consultas').select('id').eq('medico_id',req.params.id).limit(1)
-  if(vinculos?.length>0) return res.status(400).json({error:'Não é possível excluir: este médico possui consultas vinculadas. Desative-o ou remova as consultas primeiro.'})
+  if(vinculos?.length>0) return res.status(400).json({error:'Não é possível excluir: médico possui consultas vinculadas. Desative-o ou remova as consultas primeiro.'})
   const {error}=await supabase.from('medicos').delete().eq('id',req.params.id)
   if(error) return res.status(400).json({error:error.message}); res.json({message:'Médico excluído.'})
 })
 
 // PACIENTES
 app.get('/pacientes', autenticar, async (req,res)=>{
-  const q=supabase.from('pacientes').select('*')
-  if(req.usuario.perfil!=='admin') q.eq('clinica_id',req.usuario.clinica_id)
-  const {data,error}=await q
+  const clinica_id = req.usuario.clinica_id
+  const perfil     = req.usuario.perfil
+  let q = supabase.from('pacientes').select('*')
+  if (perfil !== 'admin' && clinica_id) q = q.eq('clinica_id', clinica_id)
+  const {data,error} = await q
   if(error) return res.status(500).json({error:error.message}); res.json(data)
 })
 app.post('/pacientes', autenticar, async (req,res)=>{
@@ -159,7 +168,6 @@ app.put('/pacientes/:id', autenticar, async (req,res)=>{
   if(error) return res.status(400).json({error:error.message}); res.json(data[0])
 })
 app.delete('/pacientes/:id', autenticar, async (req,res)=>{
-  // Verifica vínculos
   const [{data:c},{data:p}]=await Promise.all([
     supabase.from('consultas').select('id').eq('paciente_id',req.params.id).limit(1),
     supabase.from('prontuarios').select('id').eq('paciente_id',req.params.id).limit(1)
@@ -170,36 +178,56 @@ app.delete('/pacientes/:id', autenticar, async (req,res)=>{
   if(error) return res.status(400).json({error:error.message}); res.json({message:'Paciente removido.'})
 })
 
-// CONSULTAS
+// CONSULTAS — retorna data_consulta sempre como yyyy-mm-dd
 app.get('/consultas', autenticar, async (req,res)=>{
-  const q=supabase.from('consultas').select('*')
-  if(req.usuario.perfil!=='admin') q.eq('clinica_id',req.usuario.clinica_id)
-  const {data,error}=await q
-  if(error) return res.status(500).json({error:error.message}); res.json(data)
+  const clinica_id = req.usuario.clinica_id
+  const perfil     = req.usuario.perfil
+  let q = supabase.from('consultas').select('*')
+  if (perfil !== 'admin' && clinica_id) q = q.eq('clinica_id', clinica_id)
+  const {data,error} = await q
+  if(error) return res.status(500).json({error:error.message})
+  // Normaliza data_consulta para yyyy-mm-dd (remove timestamp se houver)
+  const normalizado = (data||[]).map(c => ({
+    ...c,
+    data_consulta: normalizarData(c.data_consulta)
+  }))
+  res.json(normalizado)
 })
 app.post('/consultas', autenticar, async (req,res)=>{
   const {paciente_id,medico_id,data_consulta,horario,motivo,observacoes}=req.body
-  const {data,error}=await supabase.from('consultas').insert([{paciente_id,medico_id:medico_id||null,data_consulta,horario,motivo,observacoes,clinica_id:req.usuario.clinica_id}]).select()
-  if(error) return res.status(400).json({error:error.message}); res.status(201).json(data[0])
+  const {data,error}=await supabase.from('consultas').insert([{
+    paciente_id, medico_id:medico_id||null,
+    data_consulta: normalizarData(data_consulta),
+    horario, motivo, observacoes,
+    clinica_id:req.usuario.clinica_id
+  }]).select()
+  if(error) return res.status(400).json({error:error.message})
+  res.status(201).json({...data[0], data_consulta: normalizarData(data[0].data_consulta)})
 })
 app.put('/consultas/:id', autenticar, async (req,res)=>{
   const {paciente_id,medico_id,data_consulta,horario,motivo,observacoes}=req.body
-  const {data,error}=await supabase.from('consultas').update({paciente_id,medico_id:medico_id||null,data_consulta,horario,motivo,observacoes}).eq('id',req.params.id).select()
-  if(error) return res.status(400).json({error:error.message}); res.json(data[0])
+  const {data,error}=await supabase.from('consultas').update({
+    paciente_id, medico_id:medico_id||null,
+    data_consulta: normalizarData(data_consulta),
+    horario, motivo, observacoes
+  }).eq('id',req.params.id).select()
+  if(error) return res.status(400).json({error:error.message})
+  res.json({...data[0], data_consulta: normalizarData(data[0].data_consulta)})
 })
 app.delete('/consultas/:id', autenticar, async (req,res)=>{
-  // Verifica prontuários gerados pela consulta
   const {data:p}=await supabase.from('prontuarios').select('id').eq('consulta_id',req.params.id).limit(1)
-  if(p?.length>0) return res.status(400).json({error:'Não é possível excluir: esta consulta possui prontuários vinculados.'})
+  if(p?.length>0) return res.status(400).json({error:'Não é possível excluir: consulta possui prontuários vinculados.'})
   const {error}=await supabase.from('consultas').delete().eq('id',req.params.id)
   if(error) return res.status(400).json({error:error.message}); res.json({message:'Consulta removida.'})
 })
 
 // PRONTUÁRIOS
 app.get('/prontuarios', autenticar, async (req,res)=>{
-  const q=supabase.from('prontuarios').select('*')
-  if(req.usuario.perfil!=='admin') q.eq('clinica_id',req.usuario.clinica_id)
-  const {data,error}=await q
+  const clinica_id = req.usuario.clinica_id
+  const perfil     = req.usuario.perfil
+  let q = supabase.from('prontuarios').select('*')
+  if (perfil !== 'admin' && clinica_id) q = q.eq('clinica_id', clinica_id)
+  const {data,error} = await q
   if(error) return res.status(500).json({error:error.message}); res.json(data)
 })
 app.post('/prontuarios', autenticar, async (req,res)=>{
@@ -208,7 +236,7 @@ app.post('/prontuarios', autenticar, async (req,res)=>{
   if(error) return res.status(400).json({error:error.message}); res.status(201).json(data[0])
 })
 
-// CLÍNICAS (geral)
+// CLÍNICAS
 app.get('/clinicas', autenticar, async (req,res)=>{
   const {data,error}=await supabase.from('clinicas').select('*')
   if(error) return res.status(500).json({error:error.message}); res.json(data)
