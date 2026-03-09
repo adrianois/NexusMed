@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
-import api from "../api"
+import { createContext, useContext, useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { jwtDecode } from 'jwt-decode'
+import api from '../api'
 
 const AuthContext = createContext(null)
 
@@ -9,39 +10,34 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
-  // Verifica se já existe token salvo ao carregar a página
   useEffect(() => {
-    const token = localStorage.getItem("token")
-    const savedUser = localStorage.getItem("user")
-
-    if (token && savedUser) {
+    const token = localStorage.getItem('token')
+    if (token) {
       try {
-        setUser(JSON.parse(savedUser))
+        const decoded = jwtDecode(token)
+        setUser(decoded)
       } catch {
-        localStorage.removeItem("token")
-        localStorage.removeItem("user")
+        localStorage.removeItem('token')
       }
     }
     setLoading(false)
   }, [])
 
   const login = async (email, senha) => {
-    const res = await api.post("/auth/login", { email, senha })
-    const { token } = res.data
-
-    // Salva token e dados do usuário
-    localStorage.setItem("token", token)
-    localStorage.setItem("user", JSON.stringify({ email }))
-
-    setUser({ email })
-    navigate("/dashboard")
+    const res = await api.post('/auth/login', { email, senha })
+    const { token, perfil, nome, clinica_id } = res.data
+    localStorage.setItem('token', token)
+    const decoded = jwtDecode(token)
+    setUser(decoded)
+    if (perfil === 'admin') navigate('/admin')
+    else if (perfil === 'gestor') navigate('/gestor')
+    else navigate('/dashboard')
   }
 
   const logout = () => {
-    localStorage.removeItem("token")
-    localStorage.removeItem("user")
+    localStorage.removeItem('token')
     setUser(null)
-    navigate("/login")
+    navigate('/login')
   }
 
   return (
