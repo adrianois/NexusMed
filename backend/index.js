@@ -56,18 +56,43 @@ app.get('/health', async (req, res) => {
   } catch { return res.status(500).json({ status: 'error' }) }
 })
 
+// ---------------------- ROTA PÚBLICA: clínicas ativas para o register ----------------------
+app.get('/clinicas/publicas', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('clinicas')
+      .select('id, nome')
+      .eq('ativo', true)
+      .order('nome')
+    if (error) return res.status(500).json({ error: error.message })
+    res.json(data || [])
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno.' })
+  }
+})
+
 // ---------------------- AUTH ----------------------
 app.post('/auth/register', async (req, res) => {
-  const { nome, email, senha } = req.body
+  const { nome, email, senha, perfil: perfilSolicitado, clinica_id } = req.body
   if (!nome || !email || !senha) return res.status(400).json({ error: 'Campos obrigatórios ausentes.' })
   try {
     const { data: existente } = await supabase.from('usuarios').select('id').eq('email', email).limit(1)
     if (existente?.length > 0) return res.status(409).json({ error: 'E-mail já cadastrado.' })
     const senha_hash = await bcrypt.hash(senha, 10)
+    // Primeiro usuário sempre vira admin
     const { data: todos } = await supabase.from('usuarios').select('id').limit(1)
-    const perfil = (!todos || todos.length === 0) ? 'admin' : 'normal'
-    const status = perfil === 'admin' ? 'ativo' : 'pendente'
-    const { data, error } = await supabase.from('usuarios').insert([{ nome, email, senha_hash, perfil, status }]).select()
+    let perfil, status
+    if (!todos || todos.length === 0) {
+      perfil = 'admin'
+      status = 'ativo'
+    } else {
+      // Aceita apenas 'normal' ou 'gestor' pelo register (nunca 'admin')
+      perfil = ['normal', 'gestor'].includes(perfilSolicitado) ? perfilSolicitado : 'normal'
+      status = 'pendente'
+    }
+    const insertData = { nome, email, senha_hash, perfil, status }
+    if (clinica_id) insertData.clinica_id = clinica_id
+    const { data, error } = await supabase.from('usuarios').insert([insertData]).select()
     if (error) return res.status(400).json({ error: error.message })
     return res.status(201).json({ message: 'Usuário criado!', usuario: data[0] })
   } catch (err) {
@@ -126,12 +151,9 @@ app.get('/admin/usuarios', autenticar, apenasAdmin, async (req, res) => {
   res.json(data)
 })
 
-// ROTA CORRIGIDA: aceita perfil, status e clinica_id sem condicional problemático
 app.patch('/admin/usuarios/:id', autenticar, apenasAdmin, async (req, res) => {
   const { id } = req.params
   const body = req.body
-
-  // Monta updates apenas com campos recebidos, sem filtros que descartam valores válidos
   const updates = {}
   if ('perfil'     in body) updates.perfil     = body.perfil
   if ('status'     in body) updates.status     = body.status
@@ -143,23 +165,25 @@ app.patch('/admin/usuarios/:id', autenticar, apenasAdmin, async (req, res) => {
 
   console.log(`[ADMIN] Atualizando usuário ${id}:`, updates)
 
-  const { data, error } = await supabase
-    .from('usuarios')
-    .update(updates)
-    .eq('id', id)
-    .select()
-
+  const { data, error } = await supabase.from('usuarios').update(updates).eq('id', id).select()
   if (error) {
-    console.error('[ADMIN] Erro ao atualizar usuário:', error)
+    console.error('[ADMIN] Erro Supabase:', error)
     return res.status(400).json({ error: error.message })
   }
-
   if (!data || data.length === 0) {
     return res.status(404).json({ error: 'Usuário não encontrado.' })
   }
-
-  console.log(`[ADMIN] Usuário ${id} atualizado com sucesso:`, data[0])
+  console.log(`[ADMIN] Sucesso:`, data[0])
   res.json(data[0])
+})
+
+// ---------------------- GESTOR — CLINICA INFO ----------------------
+app.get('/gestor/minha-clinica', autenticar, apenasGestor, async (req, res) => {
+  const clinica_id = req.usuario.clinica_id
+  if (!clinica_id) return res.json(null)
+  const { data, error } = await supabase.from('clinicas').select('id, nome, endereco, telefone').eq('id', clinica_id).limit(1)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json(data?.[0] || null)
 })
 
 // ---------------------- GESTOR — USUÁRIOS PENDENTES ----------------------
@@ -248,7 +272,7 @@ app.post('/prontuarios', autenticar, async (req, res) => {
   res.status(201).json(data[0])
 })
 
-// ---------------------- CLÍNICAS (leitura geral) ----------------------
+// ---------------------- CLÍNICAS (leitura geral autenticada) ----------------------
 app.get('/clinicas', autenticar, async (req, res) => {
   const { data, error } = await supabase.from('clinicas').select('*')
   if (error) return res.status(500).json({ error: error.message })

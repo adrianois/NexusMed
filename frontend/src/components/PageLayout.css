@@ -20,12 +20,27 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 24px 20px 20px;
+  padding: 20px 20px 16px;
   cursor: pointer;
   border-bottom: 1px solid #334155;
 }
 .sidebar-logo-icon { font-size: 1.6rem; }
 .sidebar-logo-text { font-size: 1.1rem; font-weight: 700; color: #38bdf8; }
+
+/* Banner da clínica no sidebar do Gestor */
+.sidebar-clinica-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #1e3a5f, #1e293b);
+  border-bottom: 1px solid #334155;
+  border-top: 1px solid #0f172a;
+}
+.sidebar-clinica-icon { font-size: 1.4rem; flex-shrink: 0; }
+.sidebar-clinica-info { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+.sidebar-clinica-label { font-size: 0.65rem; font-weight: 700; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.06em; }
+.sidebar-clinica-nome  { font-size: 0.82rem; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .sidebar-nav {
   flex: 1;
@@ -82,30 +97,12 @@
 .sidebar-logout:hover { background: #ef4444; border-color: #ef4444; color: #fff; }
 
 /* CONTENT */
-.content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: auto;
-}
+.content { flex: 1; display: flex; flex-direction: column; overflow: auto; }
+.page-header { padding: 24px 32px 0; border-bottom: 1px solid #1e293b; }
+.page-title  { font-size: 1.5rem; font-weight: 700; color: #f1f5f9; margin: 0 0 16px; }
+.page-body   { padding: 24px 32px; flex: 1; }
 
-.page-header {
-  padding: 24px 32px 0;
-  border-bottom: 1px solid #1e293b;
-}
-.page-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #f1f5f9;
-  margin: 0 0 16px;
-}
-
-.page-body {
-  padding: 24px 32px;
-  flex: 1;
-}
-
-/* Inner cards e forms */
+/* Cards e forms */
 .inner-toolbar { margin-bottom: 20px; }
 .inner-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 24px; margin-bottom: 24px; }
 .inner-card-title { font-size: 1rem; font-weight: 600; color: #38bdf8; margin: 0 0 20px; }
@@ -147,7 +144,7 @@
 .data-table td { padding: 12px 16px; border-top: 1px solid #1e293b; color: #cbd5e1; }
 .data-table tbody tr:hover { background: #1e293b; }
 
-/* Status badges */
+/* Badges */
 .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; }
 .badge-ativo    { background: #14532d; color: #4ade80; }
 .badge-inativo  { background: #450a0a; color: #f87171; }
@@ -156,7 +153,7 @@
 .badge-gestor   { background: #1c1917; color: #fbbf24; }
 .badge-normal   { background: #0c1a2e; color: #60a5fa; }
 
-/* Estados vazios e erros */
+/* Estados */
 .page-loading { color: #94a3b8; padding: 2rem; text-align: center; }
 .page-erro    { color: #f87171; padding: 1rem; text-align: center; }
 .page-vazio-box { text-align: center; padding: 3rem; color: #475569; }
