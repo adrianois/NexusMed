@@ -1,5 +1,30 @@
+# Dependencias
 node_modules/
+
+# Variaveis de ambiente
 .env
 .env.local
-.env.*.local
+.env.production
+
+# Build do frontend
+frontend/dist/
+frontend/build/
+
+# Logs
 *.log
+npm-debug.log*
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Cache
+.cache/
+.parcel-cache/
+.eslintcache
