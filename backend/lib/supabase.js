@@ -1,10 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
-  throw new Error('SUPABASE_URL e SUPABASE_KEY são obrigatórios no .env')
+const url = process.env.SUPABASE_URL
+const key = process.env.SUPABASE_KEY
+
+if (!url || !key) {
+  console.error('\u274c SUPABASE_URL e SUPABASE_KEY não encontrados no .env')
+  process.exit(1)
 }
 
-export const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
-)
+export const supabase = createClient(url, key)
