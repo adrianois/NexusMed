@@ -9,12 +9,21 @@ export default function PageLayout({ children, title }) {
   const navigate = useNavigate()
   const [nomeClinica, setNomeClinica] = useState('')
 
-  // Busca nome da clínica para gestor
+  // Busca nome da clínica para gestor e usuário normal
   useEffect(() => {
-    if (user?.perfil === 'gestor' && user?.clinica_id) {
+    const perfil = user?.perfil
+    if ((perfil === 'gestor' || perfil === 'normal') && user?.clinica_id) {
       api.get('/gestor/minha-clinica')
         .then(r => { if (r.data?.nome) setNomeClinica(r.data.nome) })
-        .catch(() => {})
+        .catch(() => {
+          // fallback: busca direto na lista de clínicas
+          api.get('/clinicas')
+            .then(r => {
+              const c = (r.data || []).find(x => x.id === user.clinica_id)
+              if (c) setNomeClinica(c.nome)
+            })
+            .catch(() => {})
+        })
     }
   }, [user])
 
@@ -26,14 +35,14 @@ export default function PageLayout({ children, title }) {
   ]
 
   const menuAdmin = [
-    { to: '/admin',           icon: '🛡️', label: 'Painel Admin' },
-    { to: '/admin/clinicas',  icon: '🏨', label: 'Clínicas' },
-    { to: '/admin/usuarios',  icon: '👤', label: 'Usuários' },
+    { to: '/admin',          icon: '🛡️', label: 'Painel Admin' },
+    { to: '/admin/clinicas', icon: '🏨', label: 'Clínicas' },
+    { to: '/admin/usuarios', icon: '👤', label: 'Usuários' },
   ]
 
   const menuGestor = [
     { to: '/gestor',          icon: '📊', label: 'Painel Gestor' },
-    { to: '/gestor/usuarios', icon: '⏳', label: 'Aprovar Usuários' },
+    { to: '/gestor/usuarios', icon: '⏳',     label: 'Aprovar Usuários' },
     { to: '/pacientes',       icon: '👥', label: 'Pacientes' },
     { to: '/consultas',       icon: '📅', label: 'Consultas' },
     { to: '/prontuarios',     icon: '📋', label: 'Prontuários' },
@@ -45,16 +54,21 @@ export default function PageLayout({ children, title }) {
   const badgeColor = perfil === 'admin' ? '#e74c3c' : perfil === 'gestor' ? '#f39c12' : '#27ae60'
   const badgeLabel = perfil === 'admin' ? 'Admin' : perfil === 'gestor' ? 'Gestor' : 'Usuário'
 
+  const homeRoute = perfil === 'admin' ? '/admin' : perfil === 'gestor' ? '/gestor' : '/dashboard'
+
+  // Mostra banner de clínica para gestor e normal
+  const mostrarBannerClinica = (perfil === 'gestor' || perfil === 'normal') && user?.clinica_id
+
   return (
     <div className='layout'>
       <aside className='sidebar'>
-        <div className='sidebar-logo' onClick={() => navigate(perfil === 'admin' ? '/admin' : perfil === 'gestor' ? '/gestor' : '/dashboard')}>
+        <div className='sidebar-logo' onClick={() => navigate(homeRoute)}>
           <span className='sidebar-logo-icon'>🏥</span>
           <span className='sidebar-logo-text'>NexusMed</span>
         </div>
 
-        {/* Banner da clínica para gestor */}
-        {perfil === 'gestor' && (
+        {/* Banner da clínica para gestor e normal */}
+        {mostrarBannerClinica && (
           <div className='sidebar-clinica-banner'>
             <span className='sidebar-clinica-icon'>🏨</span>
             <div className='sidebar-clinica-info'>
@@ -66,8 +80,12 @@ export default function PageLayout({ children, title }) {
 
         <nav className='sidebar-nav'>
           {menu.map(item => (
-            <NavLink key={item.to} to={item.to}
-              className={({ isActive }) => 'sidebar-link' + (isActive ? ' active' : '')}>
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/dashboard' || item.to === '/admin' || item.to === '/gestor'}
+              className={({ isActive }) => 'sidebar-link' + (isActive ? ' active' : '')}
+            >
               <span className='sidebar-icon'>{item.icon}</span>
               <span>{item.label}</span>
             </NavLink>
