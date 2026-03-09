@@ -5,7 +5,6 @@ import sequelize from "./config/database.js"
 import authRoutes from "./routes/authRoutes.js"
 
 dotenv.config()
-
 const app = express()
 
 // Middlewares

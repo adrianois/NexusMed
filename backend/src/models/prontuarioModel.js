@@ -1,4 +1,4 @@
-const supabase = require('../config/db')
+const supabase = require('../../config/db')
 
 // Buscar todos os prontuários
 exports.getAll = async () => {

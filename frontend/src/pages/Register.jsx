@@ -12,6 +12,7 @@ export default function Register() {
 
   const handleRegister = async (e) => {
     e.preventDefault()
+    setError(null)
     try {
       await api.post("/auth/register", { nome, email, senha })
       alert("Conta criada com sucesso!")
@@ -19,6 +20,8 @@ export default function Register() {
     } catch (err) {
       if (err.response && err.response.status === 409) {
         setError("Este email já está cadastrado.")
+      } else if (err.response && err.response.data?.error) {
+        setError(`Erro: ${err.response.data.error}`)
       } else {
         setError("Erro ao registrar. Tente novamente.")
       }

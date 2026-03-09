@@ -1,4 +1,4 @@
-const supabase = require('../config/db')
+const supabase = require('../../config/db')
 
 // Listar todas as clínicas
 exports.listarClinicas = async (req, res) => {

@@ -12,10 +12,22 @@ export default function Login() {
 
   const handleLogin = async (e) => {
     e.preventDefault()
+    setError(null)
     try {
-      await login(email, senha)
-    } catch {
-      setError("Credenciais inválidas.")
+      const response = await login(email, senha)
+      // supondo que o hook useAuth retorne { token }
+      if (response?.token) {
+        localStorage.setItem("token", response.token)
+        navigate("/dashboard")
+      } else {
+        setError("Erro inesperado. Tente novamente.")
+      }
+    } catch (err) {
+      if (err.response && err.response.status === 401) {
+        setError("Email ou senha incorretos.")
+      } else {
+        setError("Erro ao fazer login. Tente novamente.")
+      }
     }
   }
 
