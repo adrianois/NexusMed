@@ -155,20 +155,20 @@ app.get("/pacientes", autenticar, async (req, res) => {
 
 app.post("/pacientes", autenticar, async (req, res) => {
   const { nome, cpf, data_nascimento, telefone, email } = req.body
-  
+
   console.log('📄 Dados recebidos:', { nome, cpf, data_nascimento, telefone, email })
-  
+
   try {
     const { data, error } = await supabase
       .from("pacientes")
       .insert([{ nome, cpf, data_nascimento, telefone, email }])
       .select()
-    
+
     if (error) {
       console.error('❌ Erro Supabase ao criar paciente:', error)
       return res.status(400).json({ error: error.message || "Erro ao criar paciente." })
     }
-    
+
     console.log('✅ Paciente criado:', data[0])
     res.status(201).json(data[0])
   } catch (err) {
@@ -227,11 +227,11 @@ app.get("/consultas", autenticar, async (req, res) => {
 })
 
 app.post("/consultas", autenticar, async (req, res) => {
-  const { paciente_id, data_consulta, motivo, observacoes } = req.body
+  const { paciente_id, data_consulta, horario, motivo, observacoes } = req.body
   try {
     const { data, error } = await supabase
       .from("consultas")
-      .insert([{ paciente_id, data_consulta, motivo, observacoes }])
+      .insert([{ paciente_id, data_consulta, horario, motivo, observacoes }])
       .select()
     if (error) {
       console.error('Erro ao criar consulta:', error)
