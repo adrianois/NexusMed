@@ -1,9 +1,18 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { jwtDecode } from 'jwt-decode'
 import api from '../api'
 
 const AuthContext = createContext(null)
+
+function decodeToken(token) {
+  try {
+    const base64 = token.split('.')[1]
+    const decoded = JSON.parse(atob(base64))
+    return decoded
+  } catch {
+    return null
+  }
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -13,12 +22,9 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (token) {
-      try {
-        const decoded = jwtDecode(token)
-        setUser(decoded)
-      } catch {
-        localStorage.removeItem('token')
-      }
+      const decoded = decodeToken(token)
+      if (decoded) setUser(decoded)
+      else localStorage.removeItem('token')
     }
     setLoading(false)
   }, [])
@@ -27,7 +33,7 @@ export function AuthProvider({ children }) {
     const res = await api.post('/auth/login', { email, senha })
     const { token, perfil, nome, clinica_id } = res.data
     localStorage.setItem('token', token)
-    const decoded = jwtDecode(token)
+    const decoded = decodeToken(token)
     setUser(decoded)
     if (perfil === 'admin') navigate('/admin')
     else if (perfil === 'gestor') navigate('/gestor')
