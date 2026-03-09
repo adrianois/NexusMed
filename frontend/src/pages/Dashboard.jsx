@@ -1,130 +1,78 @@
-import { useNavigate, useLocation } from "react-router-dom"
-import { useState } from "react"
-import { useAuth } from "../context/AuthContext"
-import "./Dashboard.css"
-
-const menuItems = [
-  { icon: "🏠", label: "Início",      path: "/dashboard"   },
-  { icon: "👥", label: "Pacientes",   path: "/pacientes"   },
-  { icon: "📅", label: "Consultas",   path: "/consultas"   },
-  { icon: "📋", label: "Prontuários", path: "/prontuarios" },
-  { icon: "🏨", label: "Clínicas",    path: "/clinicas"    },
-]
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import PageLayout from '../components/PageLayout'
 
 export default function Dashboard() {
-  const { user, logout, loading } = useAuth()
-  const navigate  = useNavigate()
-  const location  = useLocation()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const perfil = user?.perfil
 
-  const goto = (path) => {
-    navigate(path)
-    setSidebarOpen(false)
-  }
+  // Cards por perfil
+  const cardsNormal = [
+    { icon: '👥', label: 'Pacientes',   desc: 'Gerenciar pacientes da clínica',  color: '#38bdf8', path: '/pacientes'   },
+    { icon: '📅', label: 'Consultas',   desc: 'Agendar e ver consultas',         color: '#22c55e', path: '/consultas'   },
+    { icon: '📋', label: 'Prontuários', desc: 'Registros médicos dos pacientes', color: '#f59e0b', path: '/prontuarios' },
+  ]
 
-  if (loading) {
-    return (
-      <div className="dash-loading">
-        <div className="dash-spinner" />
-        <p>Carregando...</p>
-      </div>
-    )
-  }
+  const cardsGestor = [
+    { icon: '👥', label: 'Pacientes',        desc: 'Gerenciar pacientes',          color: '#38bdf8', path: '/pacientes'       },
+    { icon: '📅', label: 'Consultas',        desc: 'Agendar e ver consultas',      color: '#22c55e', path: '/consultas'       },
+    { icon: '📋', label: 'Prontuários',     desc: 'Registros médicos',           color: '#f59e0b', path: '/prontuarios'     },
+    { icon: '⏳', label: 'Usuários Pendentes', desc: 'Aprovar novos usuários',      color: '#a78bfa', path: '/gestor/usuarios' },
+  ]
+
+  const cardsAdmin = [
+    { icon: '🏨', label: 'Clínicas',  desc: 'Gerenciar clínicas',    color: '#38bdf8', path: '/admin/clinicas'  },
+    { icon: '👤', label: 'Usuários', desc: 'Gerenciar usuários',    color: '#22c55e', path: '/admin/usuarios'  },
+    { icon: '👥', label: 'Pacientes', desc: 'Ver todos pacientes',   color: '#f59e0b', path: '/pacientes'       },
+    { icon: '📅', label: 'Consultas', desc: 'Ver todas consultas',   color: '#ef4444', path: '/consultas'       },
+  ]
+
+  const cards = perfil === 'admin' ? cardsAdmin : perfil === 'gestor' ? cardsGestor : cardsNormal
+
+  const nomeExibido = user?.nome || user?.email?.split('@')[0] || 'Usuário'
 
   return (
-    <div className="dash-layout">
-
-      {/* ── SIDEBAR (desktop) ───────────────── */}
-      <aside className={`dash-sidebar ${sidebarOpen ? "open" : ""}`}>
-        <div className="dash-sidebar-logo">
-          <span>🏥</span>
-          <h1>NexusMed</h1>
-        </div>
-
-        <nav className="dash-sidebar-nav">
-          {menuItems.map(item => (
-            <button
-              key={item.path}
-              className={`dash-nav-item ${location.pathname === item.path ? "active" : ""}`}
-              onClick={() => goto(item.path)}
-            >
-              <span className="nav-icon">{item.icon}</span>
-              <span className="nav-label">{item.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="dash-sidebar-footer">
-          <div className="dash-user-info">
-            <span className="user-avatar">👤</span>
-            <span className="user-email">{user?.email}</span>
-          </div>
-          <button className="dash-logout-btn" onClick={logout}>
-            🚪 Sair
-          </button>
-        </div>
-      </aside>
-
-      {/* Overlay mobile */}
-      {sidebarOpen && (
-        <div className="dash-overlay" onClick={() => setSidebarOpen(false)} />
-      )}
-
-      {/* ── CONTEÚDO PRINCIPAL ──────────────── */}
-      <div className="dash-content">
-
-        {/* Header mobile */}
-        <header className="dash-mobile-header">
-          <button className="dash-hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>
-            ☰
-          </button>
-          <span className="dash-mobile-title">🏥 NexusMed</span>
-          <button className="dash-mobile-logout" onClick={logout}>🚪</button>
-        </header>
-
-        <main className="dash-main">
-          {/* Cards do Início */}
-          <div className="dash-welcome">
-            <h2>Bem-vindo, {user?.email?.split("@")[0]}! 👋</h2>
-            <p>Sistema de gestão para clínicas médicas</p>
-          </div>
-
-          <div className="dash-cards">
-            {[
-              { icon: "👥", label: "Pacientes",   color: "#1976d2", path: "/pacientes"   },
-              { icon: "📅", label: "Consultas",   color: "#28a745", path: "/consultas"   },
-              { icon: "📋", label: "Prontuários", color: "#f59e0b", path: "/prontuarios" },
-              { icon: "🏨", label: "Clínicas",    color: "#e53935", path: "/clinicas"    },
-            ].map(card => (
-              <div
-                key={card.label}
-                className="dash-card"
-                style={{ borderTopColor: card.color, cursor: "pointer" }}
-                onClick={() => goto(card.path)}
-              >
-                <div className="dash-card-icon">{card.icon}</div>
-                <h3>{card.label}</h3>
-                <p>Clique para acessar</p>
-              </div>
-            ))}
-          </div>
-        </main>
+    <PageLayout title='🏠 Início'>
+      <div style={{ marginBottom: '28px' }}>
+        <h3 style={{ color: '#f1f5f9', fontSize: '1.3rem', margin: '0 0 6px' }}>
+          Bem-vindo, {nomeExibido}! 👋
+        </h3>
+        <p style={{ color: '#64748b', margin: 0, fontSize: '0.92rem' }}>
+          Sistema de gestão para clínicas médicas
+        </p>
       </div>
 
-      {/* ── BOTTOM NAV (mobile) ─────────────── */}
-      <nav className="dash-bottom-nav">
-        {menuItems.map(item => (
-          <button
-            key={item.path}
-            className={`bottom-nav-item ${location.pathname === item.path ? "active" : ""}`}
-            onClick={() => goto(item.path)}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+        gap: '20px'
+      }}>
+        {cards.map(card => (
+          <div
+            key={card.path}
+            onClick={() => navigate(card.path)}
+            style={{
+              background: '#1e293b',
+              border: `1px solid #334155`,
+              borderTop: `3px solid ${card.color}`,
+              borderRadius: '10px',
+              padding: '24px 20px',
+              cursor: 'pointer',
+              transition: 'transform 0.15s, background 0.15s',
+              userSelect: 'none'
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#273548'}
+            onMouseLeave={e => e.currentTarget.style.background = '#1e293b'}
           >
-            <span className="bottom-nav-icon">{item.icon}</span>
-            <span className="bottom-nav-label">{item.label}</span>
-          </button>
+            <div style={{ fontSize: '2.2rem', marginBottom: '12px' }}>{card.icon}</div>
+            <h4 style={{ color: '#f1f5f9', margin: '0 0 6px', fontSize: '1rem', fontWeight: 700 }}>
+              {card.label}
+            </h4>
+            <p style={{ color: '#64748b', margin: 0, fontSize: '0.8rem' }}>{card.desc}</p>
+          </div>
         ))}
-      </nav>
-
-    </div>
+      </div>
+    </PageLayout>
   )
 }
