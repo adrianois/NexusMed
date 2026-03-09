@@ -5,7 +5,7 @@ import express from 'express'
 import cors from 'cors'
 import bodyParser from 'body-parser'
 import { createClient } from '@supabase/supabase-js'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 
 // Debug variáveis
