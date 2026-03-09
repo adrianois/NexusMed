@@ -10,7 +10,7 @@ export default function Clinicas() {
   const [mostrarForm, setMostrarForm] = useState(false)
   const [salvando, setSalvando]       = useState(false)
   const [form, setForm] = useState({
-    nome: "", endereco: "", telefone: ""
+    nome: "", cnpj: "", endereco: "", telefone: ""
   })
 
   const carregarClinicas = () => {
@@ -28,11 +28,11 @@ export default function Clinicas() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.nome) return alert("Nome da clínica é obrigatório!")
+    if (!form.nome || !form.cnpj) return alert("Nome e CNPJ da clínica são obrigatórios!")
     setSalvando(true)
     try {
       await api.post("/clinicas", form)
-      setForm({ nome: "", endereco: "", telefone: "" })
+      setForm({ nome: "", cnpj: "", endereco: "", telefone: "" })
       setMostrarForm(false)
       carregarClinicas()
     } catch (err) {
@@ -66,11 +66,11 @@ export default function Clinicas() {
                 placeholder="Ex: Clínica Santa Maria" required />
             </div>
 
-            <div className="form-field form-field--full">
-              <label className="form-label">Endereço</label>
-              <input className="form-input" type="text" name="endereco"
-                value={form.endereco} onChange={handleChange}
-                placeholder="Rua, número, bairro, cidade, estado" />
+            <div className="form-field">
+              <label className="form-label">CNPJ <span className="required">*</span></label>
+              <input className="form-input" type="text" name="cnpj"
+                value={form.cnpj} onChange={handleChange}
+                placeholder="00.000.000/0000-00" required />
             </div>
 
             <div className="form-field">
@@ -78,6 +78,13 @@ export default function Clinicas() {
               <input className="form-input" type="tel" name="telefone"
                 value={form.telefone} onChange={handleChange}
                 placeholder="(00) 00000-0000" />
+            </div>
+
+            <div className="form-field form-field--full">
+              <label className="form-label">Endereço</label>
+              <input className="form-input" type="text" name="endereco"
+                value={form.endereco} onChange={handleChange}
+                placeholder="Rua, número, bairro, cidade, estado" />
             </div>
 
             <div className="form-actions">
@@ -114,6 +121,7 @@ export default function Clinicas() {
                 <thead>
                   <tr>
                     <th>Nome</th>
+                    <th>CNPJ</th>
                     <th>Endereço</th>
                     <th>Telefone</th>
                   </tr>
@@ -122,6 +130,7 @@ export default function Clinicas() {
                   {clinicas.map(c => (
                     <tr key={c.id}>
                       <td>{c.nome}</td>
+                      <td>{c.cnpj || "-"}</td>
                       <td>{c.endereco || "-"}</td>
                       <td>{c.telefone || "-"}</td>
                     </tr>
