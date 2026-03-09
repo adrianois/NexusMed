@@ -154,6 +154,134 @@ app.post('/auth/login', async (req, res) => {
   return res.json({ token })
 })
 
+
+// ---------------------- PACIENTES ----------------------
+app.get("/pacientes", autenticar, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from("pacientes").select("*")
+    if (error) throw error
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao carregar pacientes." })
+  }
+})
+
+app.post("/pacientes", autenticar, async (req, res) => {
+  const { nome, cpf, data_nascimento, telefone, email } = req.body
+  try {
+    const { data, error } = await supabase
+      .from("pacientes")
+      .insert([{ nome, cpf, data_nascimento, telefone, email }])
+      .select()
+    if (error) throw error
+    res.status(201).json(data[0])
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao criar paciente." })
+  }
+})
+
+app.put("/pacientes/:id", autenticar, async (req, res) => {
+  const { id } = req.params
+  try {
+    const { data, error } = await supabase
+      .from("pacientes")
+      .update(req.body)
+      .eq("id", id)
+      .select()
+    if (error) throw error
+    res.json(data[0])
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao atualizar paciente." })
+  }
+})
+
+app.delete("/pacientes/:id", autenticar, async (req, res) => {
+  const { id } = req.params
+  try {
+    const { error } = await supabase.from("pacientes").delete().eq("id", id)
+    if (error) throw error
+    res.json({ message: "Paciente removido com sucesso." })
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao remover paciente." })
+  }
+})
+
+// ---------------------- CONSULTAS ----------------------
+app.get("/consultas", autenticar, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from("consultas").select("*")
+    if (error) throw error
+    res.json(data)
+  } catch {
+    res.status(500).json({ error: "Erro ao carregar consultas." })
+  }
+})
+
+app.post("/consultas", autenticar, async (req, res) => {
+  const { paciente_id, data_consulta, motivo, observacoes } = req.body
+  try {
+    const { data, error } = await supabase
+      .from("consultas")
+      .insert([{ paciente_id, data_consulta, motivo, observacoes }])
+      .select()
+    if (error) throw error
+    res.status(201).json(data[0])
+  } catch {
+    res.status(500).json({ error: "Erro ao criar consulta." })
+  }
+})
+
+// ---------------------- PRONTUÁRIOS ----------------------
+app.get("/prontuarios", autenticar, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from("prontuarios").select("*")
+    if (error) throw error
+    res.json(data)
+  } catch {
+    res.status(500).json({ error: "Erro ao carregar prontuários." })
+  }
+})
+
+app.post("/prontuarios", autenticar, async (req, res) => {
+  const { paciente_id, descricao, data_registro } = req.body
+  try {
+    const { data, error } = await supabase
+      .from("prontuarios")
+      .insert([{ paciente_id, descricao, data_registro }])
+      .select()
+    if (error) throw error
+    res.status(201).json(data[0])
+  } catch {
+    res.status(500).json({ error: "Erro ao criar prontuário." })
+  }
+})
+
+// ---------------------- CLÍNICAS ----------------------
+app.get("/clinicas", autenticar, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from("clinicas").select("*")
+    if (error) throw error
+    res.json(data)
+  } catch {
+    res.status(500).json({ error: "Erro ao carregar clínicas." })
+  }
+})
+
+app.post("/clinicas", autenticar, async (req, res) => {
+  const { nome, endereco, telefone } = req.body
+  try {
+    const { data, error } = await supabase
+      .from("clinicas")
+      .insert([{ nome, endereco, telefone }])
+      .select()
+    if (error) throw error
+    res.status(201).json(data[0])
+  } catch {
+    res.status(500).json({ error: "Erro ao criar clínica." })
+  }
+})
+
+
 app.listen(port, () => {
   console.log(`🚀 Servidor rodando na porta ${port}`)
 })
