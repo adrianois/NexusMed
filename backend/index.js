@@ -25,7 +25,7 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-// ---------------------- Middleware ----------------------
+// ---------------------- Middleware de autenticação ----------------------
 function autenticar(req, res, next) {
   const authHeader = req.headers['authorization']
   const token = authHeader && authHeader.split(' ')[1]
@@ -43,47 +43,114 @@ app.get('/', (req, res) => {
   res.send('🚀 API NexusMed está rodando!')
 })
 
-// ---------------------- Autenticação ----------------------
-app.post('/auth/register', async (req, res) => {
-  const { nome, email, senha } = req.body
-  const senha_hash = await bcrypt.hash(senha, 10)
-
-  const { data, error } = await supabase
-    .from('usuarios')
-    .insert([{ nome, email, senha_hash }])
-    .select()
-
-  if (error) return res.status(400).json({ error: error.message })
-  return res.status(201).json({ usuario: data[0] })
+app.get('/health', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('pacientes').select('id').limit(1)
+    if (error) return res.status(500).json({ status: 'error', message: 'Falha ao conectar ao Supabase' })
+    return res.json({ status: 'ok', message: 'API NexusMed conectada ao Supabase', supabase: data ? 'conectado' : 'sem dados' })
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: 'Erro interno' })
+  }
 })
 
+// ---------------------- Autenticação ----------------------
+
+// ✅ REGISTRO — grava senha_hash no Supabase e verifica e-mail duplicado
+app.post('/auth/register', async (req, res) => {
+  const { nome, email, senha } = req.body
+
+  if (!nome || !email || !senha) {
+    return res.status(400).json({ error: 'Campos nome, email e senha são obrigatórios.' })
+  }
+
+  try {
+    // Verifica se e-mail já existe
+    const { data: existente, error: erroBusca } = await supabase
+      .from('usuarios')
+      .select('id')
+      .eq('email', email)
+      .limit(1)
+
+    if (erroBusca) return res.status(500).json({ error: erroBusca.message })
+
+    if (existente && existente.length > 0) {
+      return res.status(409).json({ error: 'Este e-mail já está cadastrado.' })
+    }
+
+    // Gera hash da senha
+    const senha_hash = await bcrypt.hash(senha, 10)
+
+    // Insere no Supabase com o campo correto: senha_hash
+    const { data, error } = await supabase
+      .from('usuarios')
+      .insert([{ nome, email, senha_hash }])
+      .select()
+
+    if (error) return res.status(400).json({ error: error.message })
+
+    return res.status(201).json({ message: 'Usuário criado com sucesso!', usuario: data[0] })
+  } catch (err) {
+    console.error('Erro no register:', err)
+    return res.status(500).json({ error: 'Erro interno no servidor.' })
+  }
+})
+
+// ✅ LOGIN — busca por e-mail e compara senha_hash
 app.post('/auth/login', async (req, res) => {
   const { email, senha } = req.body
 
-  const { data: usuarios } = await supabase
-    .from('usuarios')
-    .select('*')
-    .eq('email', email)
-    .limit(1)
+  if (!email || !senha) {
+    return res.status(400).json({ error: 'E-mail e senha são obrigatórios.' })
+  }
 
-  if (!usuarios || usuarios.length === 0) return res.status(401).json({ error: 'Usuário não encontrado' })
+  try {
+    const { data: usuarios, error: erroBusca } = await supabase
+      .from('usuarios')
+      .select('*')
+      .eq('email', email)
+      .limit(1)
 
-  const usuario = usuarios[0]
-  const senhaValida = await bcrypt.compare(senha, usuario.senha_hash)
-  if (!senhaValida) return res.status(401).json({ error: 'Senha inválida' })
+    if (erroBusca) return res.status(500).json({ error: erroBusca.message })
 
-  const { data: clinicas } = await supabase
-    .from('usuarios_clinicas')
-    .select('clinica_id')
-    .eq('usuario_id', usuario.id)
+    if (!usuarios || usuarios.length === 0) {
+      return res.status(401).json({ error: 'Usuário não encontrado.' })
+    }
 
-  const token = jwt.sign(
-    { usuario_id: usuario.id, clinicas: clinicas.map(c => c.clinica_id) },
-    jwtSecret,
-    { expiresIn: '8h' }
-  )
+    const usuario = usuarios[0]
 
-  return res.json({ token })
+    // ✅ Compara com senha_hash (campo correto no Supabase)
+    const senhaValida = await bcrypt.compare(senha, usuario.senha_hash)
+    if (!senhaValida) {
+      return res.status(401).json({ error: 'Senha inválida.' })
+    }
+
+    // Buscar clínicas vinculadas
+    const { data: clinicas } = await supabase
+      .from('usuarios_clinicas')
+      .select('clinica_id')
+      .eq('usuario_id', usuario.id)
+
+    const token = jwt.sign(
+      { usuario_id: usuario.id, email: usuario.email, clinicas: (clinicas || []).map(c => c.clinica_id) },
+      jwtSecret,
+      { expiresIn: '8h' }
+    )
+
+    const refreshToken = jwt.sign(
+      { usuario_id: usuario.id },
+      process.env.JWT_REFRESH_SECRET || jwtSecret,
+      { expiresIn: '7d' }
+    )
+
+    return res.json({
+      token,
+      refreshToken,
+      usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email }
+    })
+  } catch (err) {
+    console.error('Erro no login:', err)
+    return res.status(500).json({ error: 'Erro interno no servidor.' })
+  }
 })
 
 // ---------------------- VINCULAR USUÁRIO A CLÍNICAS ----------------------
@@ -150,25 +217,6 @@ app.post('/consultas', autenticar, async (req, res) => {
   return res.status(201).json({ consulta: data[0] })
 })
 
-app.put('/consultas/:id', autenticar, async (req, res) => {
-  const { id } = req.params
-  const { motivo, observacoes } = req.body
-  const { data, error } = await supabase
-    .from('consultas')
-    .update({ motivo, observacoes })
-    .eq('id', id)
-    .select()
-  if (error) return res.status(400).json({ error: error.message })
-  return res.json({ consulta: data[0] })
-})
-
-app.delete('/consultas/:id', autenticar, async (req, res) => {
-  const { id } = req.params
-  const { error } = await supabase.from('consultas').delete().eq('id', id)
-  if (error) return res.status(400).json({ error: error.message })
-  return res.json({ message: 'Consulta excluída com sucesso' })
-})
-
 // ---------------------- PRONTUÁRIOS ----------------------
 app.get('/prontuarios', autenticar, async (req, res) => {
   const { data, error } = await supabase.from('prontuarios').select('*')
@@ -184,25 +232,6 @@ app.post('/prontuarios', autenticar, async (req, res) => {
     .select()
   if (error) return res.status(400).json({ error: error.message })
   return res.status(201).json({ prontuario: data[0] })
-})
-
-app.put('/prontuarios/:id', autenticar, async (req, res) => {
-  const { id } = req.params
-  const { descricao } = req.body
-  const { data, error } = await supabase
-    .from('prontuarios')
-    .update({ descricao })
-    .eq('id', id)
-    .select()
-  if (error) return res.status(400).json({ error: error.message })
-  return res.json({ prontuario: data[0] })
-})
-
-app.delete('/prontuarios/:id', autenticar, async (req, res) => {
-  const { id } = req.params
-  const { error } = await supabase.from('prontuarios').delete().eq('id', id)
-  if (error) return res.status(400).json({ error: error.message })
-  return res.json({ message: 'Prontuário excluído com sucesso' })
 })
 
 // ---------------------- CLÍNICAS ----------------------
@@ -222,26 +251,7 @@ app.post('/clinicas', autenticar, async (req, res) => {
   return res.status(201).json({ clinica: data[0] })
 })
 
-app.put('/clinicas/:id', autenticar, async (req, res) => {
-  const { id } = req.params
-  const { nome, endereco, telefone } = req.body
-  const { data, error } = await supabase
-    .from('clinicas')
-    .update({ nome, endereco, telefone })
-    .eq('id', id)
-    .select()
-  if (error) return res.status(400).json({ error: error.message })
-  return res.json({ clinica: data[0] })
-})
-
-app.delete('/clinicas/:id', autenticar, async (req, res) => {
-  const { id } = req.params
-  const { error } = await supabase.from('clinicas').delete().eq('id', id)
-  if (error) return res.status(400).json({ error: error.message })
-  return res.json({ message: 'Clínica excluída com sucesso' })
-})
-
-// ---------------------- Inicialização ----------------------
+// ---------------------- START SERVER ----------------------
 app.listen(port, () => {
-  console.log(`🚀 Servidor rodando em http://localhost:${port}`)
+  console.log(`✅ Servidor rodando em http://localhost:${port}`)
 })

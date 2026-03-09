@@ -8,23 +8,32 @@ export default function Register() {
   const [email, setEmail] = useState("")
   const [senha, setSenha] = useState("")
   const [error, setError] = useState(null)
+  const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
   const handleRegister = async (e) => {
     e.preventDefault()
     setError(null)
+    setLoading(true)
+
     try {
       await api.post("/auth/register", { nome, email, senha })
       alert("Conta criada com sucesso!")
       navigate("/login")
     } catch (err) {
-      if (err.response && err.response.status === 409) {
-        setError("Este email já está cadastrado.")
-      } else if (err.response && err.response.data?.error) {
-        setError(`Erro: ${err.response.data.error}`)
+      // ✅ Trata erros vindos do backend corretamente
+      const status = err.response?.status
+      const msg = err.response?.data?.error || err.response?.data?.message
+
+      if (status === 409) {
+        setError("Este e-mail já está cadastrado.")
+      } else if (msg) {
+        setError(msg)
       } else {
-        setError("Erro ao registrar. Tente novamente.")
+        setError("Erro ao registrar. Verifique sua conexão e tente novamente.")
       }
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -54,7 +63,9 @@ export default function Register() {
             onChange={(e) => setSenha(e.target.value)}
             required
           />
-          <button type="submit" className="primary">Registrar</button>
+          <button type="submit" className="primary" disabled={loading}>
+            {loading ? "Registrando..." : "Registrar"}
+          </button>
         </form>
         {error && <p style={{ color: "red" }}>{error}</p>}
         <p>

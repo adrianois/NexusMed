@@ -1,24 +1,36 @@
 import Usuario from "../models/Usuario.js"
 import bcrypt from "bcrypt"
 
-export const register = async (req, res) => {
-  const { nome, email, senha } = req.body
+// ✅ CORREÇÃO: função login completa com token e refreshToken
+export const login = async (req, res) => {
+  const { email, senha } = req.body
 
   try {
-    const usuarioExistente = await Usuario.findOne({ where: { email } })
-    if (usuarioExistente) {
-      return res.status(409).json({ message: "Email já cadastrado" })
+    const usuario = await Usuario.findOne({ where: { email } })
+
+    if (!usuario) {
+      return res.status(401).json({ message: "Credenciais inválidas" })
     }
 
-    const senhaHash = await bcrypt.hash(senha, 10)
-    await Usuario.create({ nome, email, senha: senhaHash })
+    const senhaValida = await bcrypt.compare(senha, usuario.senha)
+    if (!senhaValida) {
+      return res.status(401).json({ message: "Credenciais inválidas" })
+    }
 
-    return res.status(201).json({ message: "Usuário criado com sucesso" })
+    const token = jwt.sign(
+      { id: usuario.id, email: usuario.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "8h" }
+    )
+
+    const refreshToken = jwt.sign(
+      { id: usuario.id },
+      process.env.JWT_REFRESH_SECRET,
+      { expiresIn: "7d" }
+    )
+
+    return res.json({ token, refreshToken, usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email } })
   } catch (err) {
-    // Captura erro de constraint UNIQUE
-    if (err.name === "SequelizeUniqueConstraintError") {
-      return res.status(409).json({ message: "Email já cadastrado" })
-    }
     console.error(err)
     return res.status(500).json({ message: "Erro interno no servidor" })
   }

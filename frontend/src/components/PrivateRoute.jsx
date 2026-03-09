@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom"
-import useAuth from "../hooks/useAuth"
+// ✅ CORREÇÃO: importa do AuthContext que tem 'loading' e 'user' corretos
+import { useAuth } from "../context/AuthContext"
 
 export default function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -8,11 +9,9 @@ export default function PrivateRoute({ children }) {
     return <p>Carregando...</p>
   }
 
-  // Se não tiver usuário logado, redireciona para login
   if (!user) {
     return <Navigate to="/login" replace />
   }
 
-  // Se tiver usuário, renderiza o conteúdo protegido
   return children
 }
