@@ -11,6 +11,7 @@ import Dashboard   from './pages/Dashboard'
 import Pacientes   from './pages/Pacientes'
 import Consultas   from './pages/Consultas'
 import Prontuarios from './pages/Prontuarios'
+import Medicos     from './pages/Medicos'
 
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminClinicas  from './pages/admin/AdminClinicas'
@@ -31,11 +32,12 @@ export default function App() {
           <Route path='/aguardando-aprovacao' element={<AguardandoAprovacao />} />
           <Route path='/nao-autorizado'       element={<NaoAutorizado />} />
 
-          {/* Rotas de usuário normal */}
+          {/* Todos os perfis autenticados */}
           <Route path='/dashboard'   element={<PrivateRoute perfis={['normal','gestor','admin']}><Dashboard /></PrivateRoute>} />
           <Route path='/pacientes'   element={<PrivateRoute perfis={['normal','gestor','admin']}><Pacientes /></PrivateRoute>} />
           <Route path='/consultas'   element={<PrivateRoute perfis={['normal','gestor','admin']}><Consultas /></PrivateRoute>} />
           <Route path='/prontuarios' element={<PrivateRoute perfis={['normal','gestor','admin']}><Prontuarios /></PrivateRoute>} />
+          <Route path='/medicos'     element={<PrivateRoute perfis={['normal','gestor','admin']}><Medicos /></PrivateRoute>} />
 
           {/* Clínicas: apenas admin e gestor */}
           <Route path='/clinicas' element={<PrivateRoute perfis={['admin','gestor']}><AdminClinicas /></PrivateRoute>} />

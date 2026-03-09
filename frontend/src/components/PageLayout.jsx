@@ -9,14 +9,12 @@ export default function PageLayout({ children, title }) {
   const navigate = useNavigate()
   const [nomeClinica, setNomeClinica] = useState('')
 
-  // Busca nome da clínica para gestor e usuário normal
   useEffect(() => {
     const perfil = user?.perfil
     if ((perfil === 'gestor' || perfil === 'normal') && user?.clinica_id) {
       api.get('/gestor/minha-clinica')
         .then(r => { if (r.data?.nome) setNomeClinica(r.data.nome) })
         .catch(() => {
-          // fallback: busca direto na lista de clínicas
           api.get('/clinicas')
             .then(r => {
               const c = (r.data || []).find(x => x.id === user.clinica_id)
@@ -29,6 +27,7 @@ export default function PageLayout({ children, title }) {
 
   const menuNormal = [
     { to: '/dashboard',   icon: '🏠', label: 'Início' },
+    { to: '/medicos',     icon: '👨‍⚕️', label: 'Médicos' },
     { to: '/pacientes',   icon: '👥', label: 'Pacientes' },
     { to: '/consultas',   icon: '📅', label: 'Consultas' },
     { to: '/prontuarios', icon: '📋', label: 'Prontuários' },
@@ -38,11 +37,16 @@ export default function PageLayout({ children, title }) {
     { to: '/admin',          icon: '🛡️', label: 'Painel Admin' },
     { to: '/admin/clinicas', icon: '🏨', label: 'Clínicas' },
     { to: '/admin/usuarios', icon: '👤', label: 'Usuários' },
+    { to: '/medicos',        icon: '👨‍⚕️', label: 'Médicos' },
+    { to: '/pacientes',      icon: '👥', label: 'Pacientes' },
+    { to: '/consultas',      icon: '📅', label: 'Consultas' },
+    { to: '/prontuarios',    icon: '📋', label: 'Prontuários' },
   ]
 
   const menuGestor = [
     { to: '/gestor',          icon: '📊', label: 'Painel Gestor' },
     { to: '/gestor/usuarios', icon: '⏳',     label: 'Aprovar Usuários' },
+    { to: '/medicos',         icon: '👨‍⚕️', label: 'Médicos' },
     { to: '/pacientes',       icon: '👥', label: 'Pacientes' },
     { to: '/consultas',       icon: '📅', label: 'Consultas' },
     { to: '/prontuarios',     icon: '📋', label: 'Prontuários' },
@@ -53,10 +57,7 @@ export default function PageLayout({ children, title }) {
 
   const badgeColor = perfil === 'admin' ? '#e74c3c' : perfil === 'gestor' ? '#f39c12' : '#27ae60'
   const badgeLabel = perfil === 'admin' ? 'Admin' : perfil === 'gestor' ? 'Gestor' : 'Usuário'
-
-  const homeRoute = perfil === 'admin' ? '/admin' : perfil === 'gestor' ? '/gestor' : '/dashboard'
-
-  // Mostra banner de clínica para gestor e normal
+  const homeRoute  = perfil === 'admin' ? '/admin' : perfil === 'gestor' ? '/gestor' : '/dashboard'
   const mostrarBannerClinica = (perfil === 'gestor' || perfil === 'normal') && user?.clinica_id
 
   return (
@@ -67,7 +68,6 @@ export default function PageLayout({ children, title }) {
           <span className='sidebar-logo-text'>NexusMed</span>
         </div>
 
-        {/* Banner da clínica para gestor e normal */}
         {mostrarBannerClinica && (
           <div className='sidebar-clinica-banner'>
             <span className='sidebar-clinica-icon'>🏨</span>
@@ -83,7 +83,7 @@ export default function PageLayout({ children, title }) {
             <NavLink
               key={item.to}
               to={item.to}
-              end={item.to === '/dashboard' || item.to === '/admin' || item.to === '/gestor'}
+              end={['/dashboard','/admin','/gestor'].includes(item.to)}
               className={({ isActive }) => 'sidebar-link' + (isActive ? ' active' : '')}
             >
               <span className='sidebar-icon'>{item.icon}</span>
