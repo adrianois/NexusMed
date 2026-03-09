@@ -9,54 +9,37 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
-  // Função para renovar token
-  const refreshToken = async () => {
-    const refresh = localStorage.getItem("refreshToken")
-    if (!refresh) return logout()
-
-    try {
-      const res = await api.post("/auth/refresh", { refreshToken: refresh })
-      localStorage.setItem("token", res.data.token)
-      return res.data.token
-    } catch {
-      logout()
-    }
-  }
-
-  // Verifica token ao carregar
+  // Verifica se já existe token salvo ao carregar a página
   useEffect(() => {
     const token = localStorage.getItem("token")
-    if (!token) {
-      setLoading(false)
-      return
-    }
+    const savedUser = localStorage.getItem("user")
 
-    api.get("/dashboard", {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => setUser(res.data))
-      .catch(async () => {
-        const newToken = await refreshToken()
-        if (newToken) {
-          api.get("/dashboard", {
-            headers: { Authorization: `Bearer ${newToken}` }
-          }).then(res => setUser(res.data))
-        }
-      })
-      .finally(() => setLoading(false))
-  }, [navigate])
+    if (token && savedUser) {
+      try {
+        setUser(JSON.parse(savedUser))
+      } catch {
+        localStorage.removeItem("token")
+        localStorage.removeItem("user")
+      }
+    }
+    setLoading(false)
+  }, [])
 
   const login = async (email, senha) => {
     const res = await api.post("/auth/login", { email, senha })
-    localStorage.setItem("token", res.data.token)
-    localStorage.setItem("refreshToken", res.data.refreshToken)
+    const { token } = res.data
+
+    // Salva token e dados do usuário
+    localStorage.setItem("token", token)
+    localStorage.setItem("user", JSON.stringify({ email }))
+
     setUser({ email })
     navigate("/dashboard")
   }
 
   const logout = () => {
     localStorage.removeItem("token")
-    localStorage.removeItem("refreshToken")
+    localStorage.removeItem("user")
     setUser(null)
     navigate("/login")
   }

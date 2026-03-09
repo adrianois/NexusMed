@@ -1,17 +1,10 @@
-/* Centraliza todo o conteúdo no body */
-body, html {
-     margin: 0;
-    place-items: center;
-    min-width: 320px;
-    min-height: 100vh;
-}
-
 .login-container {
   display: flex;
-  justify-content: center;   /* Centraliza horizontalmente */
-  align-items: center;       /* Centraliza verticalmente */
-  height: 100vh;             /* Ocupa toda a altura da janela */
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
   width: 100%;
+  padding: 1rem;
   background: linear-gradient(135deg, #0d47a1, #1976d2);
   font-family: 'Segoe UI', sans-serif;
 }
@@ -21,13 +14,15 @@ body, html {
   padding: 2rem;
   border-radius: 12px;
   box-shadow: 0 6px 20px rgba(0,0,0,0.3);
-  width: 350px;
+  width: 100%;
+  max-width: 380px;
   text-align: center;
 }
 
 .login-box h2 {
   margin-bottom: 1.5rem;
   color: #0d47a1;
+  font-size: 1.6rem;
 }
 
 .login-box form {
@@ -37,34 +32,40 @@ body, html {
 }
 
 .login-box input {
-  padding: 0.8rem;
+  padding: 0.85rem 1rem;
   border: 1px solid #ccc;
-  border-radius: 6px;
+  border-radius: 8px;
+  font-size: 1rem;
+  width: 100%;
+  transition: border-color 0.2s;
 }
 
 .login-box input:focus {
   border-color: #1976d2;
   outline: none;
+  box-shadow: 0 0 0 3px rgba(25,118,210,0.15);
 }
 
 .login-box button.primary {
-  padding: 0.8rem;
+  padding: 0.85rem;
   background: #1976d2;
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-weight: bold;
+  font-size: 1rem;
   cursor: pointer;
   transition: background 0.3s ease;
+  width: 100%;
 }
 
-.login-box button.primary:hover {
-  background: #1565c0;
-}
+.login-box button.primary:hover  { background: #1565c0; }
+.login-box button.primary:active { background: #0d47a1; }
 
 .login-box p {
-  margin-top: 1rem;
+  margin-top: 1.25rem;
   color: #555;
+  font-size: 0.9rem;
 }
 
 .login-box p button {
@@ -73,4 +74,15 @@ body, html {
   color: #1976d2;
   cursor: pointer;
   font-weight: bold;
+  font-size: 0.9rem;
+  text-decoration: underline;
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .login-box {
+    padding: 1.5rem 1.25rem;
+    border-radius: 10px;
+  }
+  .login-box h2 { font-size: 1.4rem; }
 }

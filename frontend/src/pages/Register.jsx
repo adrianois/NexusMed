@@ -9,6 +9,7 @@ export default function Register() {
   const [senha, setSenha] = useState("")
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [showModal, setShowModal] = useState(false)
   const navigate = useNavigate()
 
   const handleRegister = async (e) => {
@@ -18,10 +19,8 @@ export default function Register() {
 
     try {
       await api.post("/auth/register", { nome, email, senha })
-      alert("Conta criada com sucesso!")
-      navigate("/login")
+      setShowModal(true) // ✅ Abre o modal de sucesso
     } catch (err) {
-      // ✅ Trata erros vindos do backend corretamente
       const status = err.response?.status
       const msg = err.response?.data?.error || err.response?.data?.message
 
@@ -35,6 +34,11 @@ export default function Register() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleModalClose = () => {
+    setShowModal(false)
+    navigate("/login")
   }
 
   return (
@@ -67,11 +71,28 @@ export default function Register() {
             {loading ? "Registrando..." : "Registrar"}
           </button>
         </form>
-        {error && <p style={{ color: "red" }}>{error}</p>}
+        {error && <p className="error-msg">{error}</p>}
         <p>
-          Já tem conta? <button onClick={() => navigate("/login")}>Entrar</button>
+          Já tem conta?{" "}
+          <button className="link-btn" onClick={() => navigate("/login")}>
+            Entrar
+          </button>
         </p>
       </div>
+
+      {/* ✅ Modal de sucesso */}
+      {showModal && (
+        <div className="modal-overlay">
+          <div className="modal-box">
+            <div className="modal-icon">✅</div>
+            <h3>Cadastro realizado!</h3>
+            <p>Sua conta foi criada com sucesso.<br />Faça login para continuar.</p>
+            <button className="primary modal-btn" onClick={handleModalClose}>
+              Ir para o Login
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

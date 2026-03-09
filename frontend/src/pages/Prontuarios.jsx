@@ -1,36 +1,50 @@
-import { useEffect, useState } from 'react'
-import api from '../api'
-import Header from '../components/Header'
-import Sidebar from '../components/Sidebar'
-import './Dashboard.css'
+import { useEffect, useState } from "react"
+import api from "../api"
+import PageLayout from "../components/PageLayout"
+import "./InnerPage.css"
 
 export default function Prontuarios() {
   const [prontuarios, setProntuarios] = useState([])
+  const [loading, setLoading]         = useState(true)
+  const [erro, setErro]               = useState(null)
 
   useEffect(() => {
-    const fetchProntuarios = async () => {
-      const res = await api.get('/prontuarios')
-      setProntuarios(res.data.prontuarios)
-    }
-    fetchProntuarios()
+    api.get("/prontuarios")
+      .then(res => setProntuarios(res.data.prontuarios || []))
+      .catch(() => setErro("Erro ao carregar prontuários."))
+      .finally(() => setLoading(false))
   }, [])
 
   return (
-    <div>
-      <Header />
-      <Sidebar />
-      <div className="dashboard-container" style={{ marginLeft: '240px' }}>
-        <h2>Prontuários</h2>
-        <ul className="dashboard-list">
-          {prontuarios.map(p => (
-            <li key={p.id}>
-              <strong>Paciente ID: {p.paciente_id}</strong>
-              <span>Data: {p.data_registro}</span>
-              <span>Descrição: {p.descricao}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
+    <PageLayout title="📋 Prontuários">
+      {loading && <p className="page-loading">Carregando...</p>}
+      {erro    && <p className="page-erro">{erro}</p>}
+      {!loading && !erro && (
+        prontuarios.length === 0
+          ? <p className="page-vazio">Nenhum prontuário cadastrado.</p>
+          : (
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Paciente ID</th>
+                    <th>Descrição</th>
+                    <th>Data</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {prontuarios.map(p => (
+                    <tr key={p.id}>
+                      <td>{p.paciente_id}</td>
+                      <td>{p.descricao}</td>
+                      <td>{p.data_registro}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+      )}
+    </PageLayout>
   )
 }

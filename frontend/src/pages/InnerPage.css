@@ -1,0 +1,66 @@
+/* ── Cabeçalho da página ─────────────── */
+.page-header {
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid #e8edf2;
+  padding-bottom: 0.75rem;
+}
+.page-title {
+  font-size: 1.5rem;
+  color: #0d47a1;
+  font-weight: 700;
+}
+
+/* ── Estados ────────────────────────── */
+.page-loading { color: #888; font-style: italic; padding: 2rem 0; }
+.page-erro    { color: #e53935; background: #fdecea; padding: 1rem; border-radius: 8px; }
+.page-vazio   { color: #aaa; text-align: center; padding: 3rem 0; font-size: 1rem; }
+
+/* ── Tabela responsiva ───────────────── */
+.table-wrapper {
+  overflow-x: auto;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.07);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  font-size: 0.9rem;
+}
+
+.data-table thead tr {
+  background: linear-gradient(135deg, #0d47a1, #1976d2);
+  color: white;
+}
+
+.data-table th {
+  padding: 0.85rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid #f0f4f8;
+  color: #333;
+}
+
+.data-table tbody tr:hover {
+  background: #f5f9ff;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Mobile: tabela scroll horizontal */
+@media (max-width: 640px) {
+  .data-table th,
+  .data-table td {
+    padding: 0.65rem 0.75rem;
+    font-size: 0.82rem;
+  }
+  .page-title { font-size: 1.2rem; }
+}

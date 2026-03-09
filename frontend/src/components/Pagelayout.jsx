@@ -1,7 +1,11 @@
-import { useNavigate, useLocation } from "react-router-dom"
+/**
+ * PageLayout — Layout compartilhado para todas as páginas internas
+ * Uso: <PageLayout title="Pacientes"> ...conteúdo... </PageLayout>
+ */
 import { useState } from "react"
+import { useNavigate, useLocation } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
-import "./Dashboard.css"
+import "../pages/Dashboard.css"
 
 const menuItems = [
   { icon: "🏠", label: "Início",      path: "/dashboard"   },
@@ -11,8 +15,8 @@ const menuItems = [
   { icon: "🏨", label: "Clínicas",    path: "/clinicas"    },
 ]
 
-export default function Dashboard() {
-  const { user, logout, loading } = useAuth()
+export default function PageLayout({ children, title }) {
+  const { user, logout } = useAuth()
   const navigate  = useNavigate()
   const location  = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -22,19 +26,10 @@ export default function Dashboard() {
     setSidebarOpen(false)
   }
 
-  if (loading) {
-    return (
-      <div className="dash-loading">
-        <div className="dash-spinner" />
-        <p>Carregando...</p>
-      </div>
-    )
-  }
-
   return (
     <div className="dash-layout">
 
-      {/* ── SIDEBAR (desktop) ───────────────── */}
+      {/* ── SIDEBAR ─────────────────────────── */}
       <aside className={`dash-sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="dash-sidebar-logo">
           <span>🏥</span>
@@ -59,59 +54,31 @@ export default function Dashboard() {
             <span className="user-avatar">👤</span>
             <span className="user-email">{user?.email}</span>
           </div>
-          <button className="dash-logout-btn" onClick={logout}>
-            🚪 Sair
-          </button>
+          <button className="dash-logout-btn" onClick={logout}>🚪 Sair</button>
         </div>
       </aside>
 
-      {/* Overlay mobile */}
       {sidebarOpen && (
         <div className="dash-overlay" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* ── CONTEÚDO PRINCIPAL ──────────────── */}
+      {/* ── CONTEÚDO ────────────────────────── */}
       <div className="dash-content">
-
-        {/* Header mobile */}
         <header className="dash-mobile-header">
-          <button className="dash-hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>
-            ☰
-          </button>
-          <span className="dash-mobile-title">🏥 NexusMed</span>
+          <button className="dash-hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
+          <span className="dash-mobile-title">🏥 {title || "NexusMed"}</span>
           <button className="dash-mobile-logout" onClick={logout}>🚪</button>
         </header>
 
         <main className="dash-main">
-          {/* Cards do Início */}
-          <div className="dash-welcome">
-            <h2>Bem-vindo, {user?.email?.split("@")[0]}! 👋</h2>
-            <p>Sistema de gestão para clínicas médicas</p>
+          <div className="page-header">
+            <h2 className="page-title">{title}</h2>
           </div>
-
-          <div className="dash-cards">
-            {[
-              { icon: "👥", label: "Pacientes",   color: "#1976d2", path: "/pacientes"   },
-              { icon: "📅", label: "Consultas",   color: "#28a745", path: "/consultas"   },
-              { icon: "📋", label: "Prontuários", color: "#f59e0b", path: "/prontuarios" },
-              { icon: "🏨", label: "Clínicas",    color: "#e53935", path: "/clinicas"    },
-            ].map(card => (
-              <div
-                key={card.label}
-                className="dash-card"
-                style={{ borderTopColor: card.color, cursor: "pointer" }}
-                onClick={() => goto(card.path)}
-              >
-                <div className="dash-card-icon">{card.icon}</div>
-                <h3>{card.label}</h3>
-                <p>Clique para acessar</p>
-              </div>
-            ))}
-          </div>
+          {children}
         </main>
       </div>
 
-      {/* ── BOTTOM NAV (mobile) ─────────────── */}
+      {/* ── BOTTOM NAV (mobile) ──────────────── */}
       <nav className="dash-bottom-nav">
         {menuItems.map(item => (
           <button
