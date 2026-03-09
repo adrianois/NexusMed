@@ -293,11 +293,11 @@ app.get("/clinicas", autenticar, async (req, res) => {
 })
 
 app.post("/clinicas", autenticar, async (req, res) => {
-  const { nome, endereco, telefone } = req.body
+  const { nome, cnpj, endereco, telefone } = req.body
   try {
     const { data, error } = await supabase
       .from("clinicas")
-      .insert([{ nome, endereco, telefone }])
+      .insert([{ nome, cnpj, endereco, telefone }])
       .select()
     if (error) {
       console.error('Erro ao criar clínica:', error)
