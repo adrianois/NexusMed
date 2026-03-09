@@ -64,7 +64,6 @@ app.post('/auth/register', async (req, res) => {
     const { data: existente } = await supabase.from('usuarios').select('id').eq('email', email).limit(1)
     if (existente?.length > 0) return res.status(409).json({ error: 'E-mail já cadastrado.' })
     const senha_hash = await bcrypt.hash(senha, 10)
-    // Verifica se é o primeiro usuário (será admin)
     const { data: todos } = await supabase.from('usuarios').select('id').limit(1)
     const perfil = (!todos || todos.length === 0) ? 'admin' : 'normal'
     const status = perfil === 'admin' ? 'ativo' : 'pendente'
@@ -127,15 +126,39 @@ app.get('/admin/usuarios', autenticar, apenasAdmin, async (req, res) => {
   res.json(data)
 })
 
+// ROTA CORRIGIDA: aceita perfil, status e clinica_id sem condicional problemático
 app.patch('/admin/usuarios/:id', autenticar, apenasAdmin, async (req, res) => {
   const { id } = req.params
-  const { perfil, status, clinica_id } = req.body
+  const body = req.body
+
+  // Monta updates apenas com campos recebidos, sem filtros que descartam valores válidos
   const updates = {}
-  if (perfil) updates.perfil = perfil
-  if (status) updates.status = status
-  if (clinica_id !== undefined) updates.clinica_id = clinica_id
-  const { data, error } = await supabase.from('usuarios').update(updates).eq('id', id).select()
-  if (error) return res.status(400).json({ error: error.message })
+  if ('perfil'     in body) updates.perfil     = body.perfil
+  if ('status'     in body) updates.status     = body.status
+  if ('clinica_id' in body) updates.clinica_id = body.clinica_id || null
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: 'Nenhum campo para atualizar.' })
+  }
+
+  console.log(`[ADMIN] Atualizando usuário ${id}:`, updates)
+
+  const { data, error } = await supabase
+    .from('usuarios')
+    .update(updates)
+    .eq('id', id)
+    .select()
+
+  if (error) {
+    console.error('[ADMIN] Erro ao atualizar usuário:', error)
+    return res.status(400).json({ error: error.message })
+  }
+
+  if (!data || data.length === 0) {
+    return res.status(404).json({ error: 'Usuário não encontrado.' })
+  }
+
+  console.log(`[ADMIN] Usuário ${id} atualizado com sucesso:`, data[0])
   res.json(data[0])
 })
 
@@ -159,9 +182,8 @@ app.patch('/gestor/usuarios/:id/aprovar', autenticar, apenasGestor, async (req, 
 
 // ---------------------- PACIENTES ----------------------
 app.get('/pacientes', autenticar, async (req, res) => {
-  const clinica_id = req.usuario.clinica_id
   const query = supabase.from('pacientes').select('*')
-  if (req.usuario.perfil !== 'admin') query.eq('clinica_id', clinica_id)
+  if (req.usuario.perfil !== 'admin') query.eq('clinica_id', req.usuario.clinica_id)
   const { data, error } = await query
   if (error) return res.status(500).json({ error: error.message })
   res.json(data)
