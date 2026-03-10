@@ -5,16 +5,6 @@ import { autenticar, apenasGestor } from '../lib/auth.js'
 const router = Router()
 router.use(autenticar, apenasGestor)
 
-// Utilitario: busca IDs dos usuarios da clinica
-async function idsClinica(clinica_id) {
-  const { data, error } = await supabase
-    .from('usuarios')
-    .select('id')
-    .eq('clinica_id', clinica_id)
-  if (error) throw new Error('Erro ao buscar usuarios: ' + error.message)
-  return (data || []).map(u => u.id)
-}
-
 // GET /gestor/minha-clinica
 router.get('/minha-clinica', async (req, res) => {
   if (!req.usuario.clinica_id) return res.json(null)
@@ -47,25 +37,23 @@ router.patch('/usuarios/:id/aprovar', async (req, res) => {
   res.json(data[0])
 })
 
-// GET /gestor/logs/resumo  (DEVE vir antes de /logs)
+// GET /gestor/logs/resumo  (DEVE ficar antes de /logs)
 router.get('/logs/resumo', async (req, res) => {
   try {
     const clinica_id = req.usuario.clinica_id
     if (!clinica_id) return res.status(400).json({ error: 'Gestor sem clinica.' })
 
-    const ids = await idsClinica(clinica_id)
-    if (ids.length === 0) return res.json({ total: 0, hoje: 0, acoes: {} })
-
-    // Busca todos os logs dos usuarios da clinica (sem paginacao, so acao e data)
-    const { data: todos, error } = await supabase
+    // A tabela logs ja tem clinica_id — filtro direto, sem join
+    const { data, error } = await supabase
       .from('logs')
       .select('acao, criado_em')
-      .in('usuario_id', ids)
+      .eq('clinica_id', clinica_id)
 
     if (error) throw new Error(error.message)
 
-    const registros = todos || []
-    const hojeInicio = new Date(); hojeInicio.setHours(0, 0, 0, 0)
+    const registros = data || []
+    const hojeInicio = new Date()
+    hojeInicio.setHours(0, 0, 0, 0)
 
     const acoes = {}
     let totalHoje = 0
@@ -91,20 +79,16 @@ router.get('/logs', async (req, res) => {
     const limit  = 50
     const offset = (Number(page) - 1) * limit
 
-    const ids = await idsClinica(clinica_id)
-    if (ids.length === 0) return res.json({ logs: [], total: 0, page: Number(page), limit })
-
-    // Estrategia: busca todos os IDs filtrados primeiro, depois pagina
-    // Isso evita bug do Supabase com .in() + .eq() + .range() combinados
+    // Filtro direto por clinica_id — sem necessidade de buscar IDs de usuarios
     let qCount = supabase
       .from('logs')
       .select('id', { count: 'exact', head: true })
-      .in('usuario_id', ids)
+      .eq('clinica_id', clinica_id)
 
     let qData = supabase
       .from('logs')
       .select('*')
-      .in('usuario_id', ids)
+      .eq('clinica_id', clinica_id)
       .order('criado_em', { ascending: false })
       .range(offset, offset + limit - 1)
 
