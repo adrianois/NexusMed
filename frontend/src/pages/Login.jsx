@@ -1,65 +1,68 @@
-import { useState } from "react"
-import { useNavigate } from "react-router-dom"
-// ✅ CORREÇÃO: importa do AuthContext, não do hook isolado
-import { useAuth } from "../context/AuthContext"
-import "./Login.css"
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import './Login.css'
 
 export default function Login() {
-  const [email, setEmail] = useState("")
-  const [senha, setSenha] = useState("")
-  const [error, setError] = useState(null)
+  const [email, setEmail]   = useState('')
+  const [senha, setSenha]   = useState('')
+  const [error, setError]   = useState(null)
   const [loading, setLoading] = useState(false)
-  // ✅ CORREÇÃO: login vem do AuthContext que já faz navigate internamente
   const { login } = useAuth()
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
 
-  const handleLogin = async (e) => {
+  const handleLogin = async e => {
     e.preventDefault()
     setError(null)
     setLoading(true)
     try {
       await login(email, senha)
-      // navigate já é chamado dentro do AuthContext.login
     } catch (err) {
       if (err.response?.status === 401) {
-        setError("Email ou senha incorretos.")
+        setError('Email ou senha incorretos.')
       } else if (err.response?.data?.message) {
         setError(err.response.data.message)
+      } else if (err.response?.data?.error) {
+        setError(err.response.data.error)
       } else {
-        setError("Erro ao fazer login. Tente novamente.")
+        setError('Erro ao fazer login. Tente novamente.')
       }
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
   return (
-    <div className="login-container">
-      <div className="login-box">
-        <h2>Login</h2>
+    <div className='login-container'>
+      <div className='login-box'>
+        <div style={{fontSize:'2.5rem',marginBottom:'4px'}}>🏥</div>
+        <h2>NexusMed</h2>
         <form onSubmit={handleLogin}>
           <input
-            type="email"
-            placeholder="Digite seu email"
+            type='email'
+            placeholder='Digite seu e-mail'
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={e => setEmail(e.target.value)}
             required
           />
           <input
-            type="password"
-            placeholder="Digite sua senha"
+            type='password'
+            placeholder='Digite sua senha'
             value={senha}
-            onChange={(e) => setSenha(e.target.value)}
+            onChange={e => setSenha(e.target.value)}
             required
           />
-          <button type="submit" className="primary" disabled={loading}>
-            {loading ? "Entrando..." : "Entrar"}
+          <button type='submit' className='primary' disabled={loading}>
+            {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
-        {error && <p style={{ color: "red" }}>{error}</p>}
+
+        {error && <p style={{color:'#dc2626',marginTop:'8px',fontSize:'0.9rem'}}>{error}</p>}
+
+        <p style={{marginTop:'8px'}}>
+          <button onClick={() => navigate('/esqueci-senha')}>Esqueci minha senha</button>
+        </p>
         <p>
-          Não tem conta?{" "}
-          <button onClick={() => navigate("/register")}>Registrar</button>
+          N\u00e3o tem conta?{' '}
+          <button onClick={() => navigate('/register')}>Registrar</button>
         </p>
       </div>
     </div>

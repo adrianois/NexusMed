@@ -6,6 +6,8 @@ import Login               from './pages/Login'
 import Register            from './pages/Register'
 import AguardandoAprovacao from './pages/AguardandoAprovacao'
 import NaoAutorizado       from './pages/NaoAutorizado'
+import EsqueciSenha        from './pages/EsqueciSenha'
+import ResetarSenha        from './pages/ResetarSenha'
 
 import Dashboard   from './pages/Dashboard'
 import Pacientes   from './pages/Pacientes'
@@ -20,21 +22,23 @@ import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminClinicas  from './pages/admin/AdminClinicas'
 import AdminUsuarios  from './pages/admin/AdminUsuarios'
 
-import GestorDashboard    from './pages/gestor/GestorDashboard'
-import GestorUsuarios     from './pages/gestor/GestorUsuarios'
-import GestorTrocarSenha  from './pages/gestor/GestorTrocarSenha'
+import GestorDashboard   from './pages/gestor/GestorDashboard'
+import GestorUsuarios    from './pages/gestor/GestorUsuarios'
+import GestorTrocarSenha from './pages/gestor/GestorTrocarSenha'
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Públicas */}
+          {/* P\u00fablicas */}
           <Route path='/'                     element={<Login />} />
           <Route path='/login'                element={<Login />} />
           <Route path='/register'             element={<Register />} />
           <Route path='/aguardando-aprovacao' element={<AguardandoAprovacao />} />
           <Route path='/nao-autorizado'       element={<NaoAutorizado />} />
+          <Route path='/esqueci-senha'        element={<EsqueciSenha />} />
+          <Route path='/resetar-senha'        element={<ResetarSenha />} />
 
           {/* Todos os perfis autenticados */}
           <Route path='/dashboard'    element={<PrivateRoute perfis={['normal','gestor','admin']}><Dashboard /></PrivateRoute>} />
@@ -44,7 +48,7 @@ export default function App() {
           <Route path='/medicos'      element={<PrivateRoute perfis={['normal','gestor','admin']}><Medicos /></PrivateRoute>} />
           <Route path='/minha-senha'  element={<PrivateRoute perfis={['normal','gestor','admin']}><MinhaSenha /></PrivateRoute>} />
 
-          {/* Clínicas: apenas admin e gestor */}
+          {/* Cl\u00ednicas: admin e gestor */}
           <Route path='/clinicas' element={<PrivateRoute perfis={['admin','gestor']}><AdminClinicas /></PrivateRoute>} />
 
           {/* Admin */}
@@ -55,9 +59,9 @@ export default function App() {
           <Route path='/usuarios'       element={<PrivateRoute perfis={['admin']}><Usuarios /></PrivateRoute>} />
 
           {/* Gestor */}
-          <Route path='/gestor'                element={<PrivateRoute perfis={['gestor','admin']}><GestorDashboard /></PrivateRoute>} />
-          <Route path='/gestor/usuarios'       element={<PrivateRoute perfis={['gestor','admin']}><GestorUsuarios /></PrivateRoute>} />
-          <Route path='/gestor/trocar-senha'   element={<PrivateRoute perfis={['gestor']}><GestorTrocarSenha /></PrivateRoute>} />
+          <Route path='/gestor'               element={<PrivateRoute perfis={['gestor','admin']}><GestorDashboard /></PrivateRoute>} />
+          <Route path='/gestor/usuarios'      element={<PrivateRoute perfis={['gestor','admin']}><GestorUsuarios /></PrivateRoute>} />
+          <Route path='/gestor/trocar-senha'  element={<PrivateRoute perfis={['gestor']}><GestorTrocarSenha /></PrivateRoute>} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
