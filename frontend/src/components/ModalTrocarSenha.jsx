@@ -1,23 +1,42 @@
 import { useState } from 'react'
 import api from '../api'
 
-/**
- * Props:
- *  usuarioAlvo    - objeto { id, nome, email }
- *  perfilLogado   - 'admin' | 'gestor' | 'normal'
- *  usuarioLogadoId - id do usuario logado (para saber se e o proprio)
- *  onFechar       - funcao para fechar o modal
- */
+// Fora do componente para evitar remontagem a cada render
+function CampoSenha({ id, label, value, onChange, mostrar, onToggle }) {
+  return (
+    <div className='form-field form-field--full'>
+      <label className='form-label'>{label} <span className='required'>*</span></label>
+      <div style={{ position:'relative' }}>
+        <input
+          className='form-input'
+          type={mostrar ? 'text' : 'password'}
+          value={value}
+          onChange={e => onChange(id, e.target.value)}
+          required
+          autoComplete='new-password'
+          style={{ paddingRight:'40px' }}
+        />
+        <button type='button' onClick={() => onToggle(id)}
+          style={{ position:'absolute', right:'10px', top:'50%', transform:'translateY(-50%)',
+            background:'none', border:'none', cursor:'pointer', color:'#64748b', fontSize:'1rem' }}>
+          {mostrar ? '👁️' : '👁'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function ModalTrocarSenha({ usuarioAlvo, perfilLogado, usuarioLogadoId, onFechar }) {
   const ehProprioUsuario = usuarioAlvo?.id === usuarioLogadoId
   const exigeSenhaAtual  = ehProprioUsuario && perfilLogado !== 'admin'
 
-  const [form, setForm]       = useState({ senha_atual: '', nova_senha: '', confirmar: '' })
+  const [form, setForm]         = useState({ senha_atual: '', nova_senha: '', confirmar: '' })
   const [salvando, setSalvando] = useState(false)
-  const [msg, setMsg]         = useState(null)
-  const [mostrar, setMostrar] = useState({ senha_atual: false, nova_senha: false, confirmar: false })
+  const [msg, setMsg]           = useState(null)
+  const [mostrar, setMostrar]   = useState({ senha_atual: false, nova_senha: false, confirmar: false })
 
-  const toggle = campo => setMostrar(prev => ({ ...prev, [campo]: !prev[campo] }))
+  const handleChange = (id, valor) => setForm(prev => ({ ...prev, [id]: valor }))
+  const toggle = id => setMostrar(prev => ({ ...prev, [id]: !prev[id] }))
 
   const handleSubmit = async e => {
     e.preventDefault()
@@ -39,28 +58,6 @@ export default function ModalTrocarSenha({ usuarioAlvo, perfilLogado, usuarioLog
     } finally { setSalvando(false) }
   }
 
-  const Campo = ({ id, label }) => (
-    <div className='form-field form-field--full'>
-      <label className='form-label'>{label} <span className='required'>*</span></label>
-      <div style={{ position:'relative' }}>
-        <input
-          className='form-input'
-          type={mostrar[id] ? 'text' : 'password'}
-          value={form[id]}
-          onChange={e => setForm(prev => ({ ...prev, [id]: e.target.value }))}
-          required
-          autoComplete='new-password'
-          style={{ paddingRight:'40px' }}
-        />
-        <button type='button' onClick={() => toggle(id)}
-          style={{ position:'absolute', right:'10px', top:'50%', transform:'translateY(-50%)',
-            background:'none', border:'none', cursor:'pointer', color:'#64748b', fontSize:'1rem' }}>
-          {mostrar[id] ? '👁️' : '👁'}
-        </button>
-      </div>
-    </div>
-  )
-
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:1000,
       display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}
@@ -76,9 +73,17 @@ export default function ModalTrocarSenha({ usuarioAlvo, perfilLogado, usuarioLog
         </p>
 
         <form onSubmit={handleSubmit} className='inner-form'>
-          {exigeSenhaAtual && <Campo id='senha_atual' label='Senha Atual' />}
-          <Campo id='nova_senha' label='Nova Senha' />
-          <Campo id='confirmar'  label='Confirmar Nova Senha' />
+          {exigeSenhaAtual && (
+            <CampoSenha id='senha_atual' label='Senha Atual'
+              value={form.senha_atual} onChange={handleChange}
+              mostrar={mostrar.senha_atual} onToggle={toggle} />
+          )}
+          <CampoSenha id='nova_senha' label='Nova Senha'
+            value={form.nova_senha} onChange={handleChange}
+            mostrar={mostrar.nova_senha} onToggle={toggle} />
+          <CampoSenha id='confirmar' label='Confirmar Nova Senha'
+            value={form.confirmar} onChange={handleChange}
+            mostrar={mostrar.confirmar} onToggle={toggle} />
 
           {msg && (
             <div style={{ padding:'10px 14px', borderRadius:'6px', fontSize:'0.82rem', fontWeight:600,

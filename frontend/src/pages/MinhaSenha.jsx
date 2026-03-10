@@ -4,6 +4,32 @@ import PageLayout from '../components/PageLayout'
 import { useAuth } from '../context/AuthContext'
 import './InnerPage.css'
 
+// Fora do componente para evitar remontagem a cada render
+function CampoSenha({ id, label, placeholder, value, onChange, mostrar, onToggle }) {
+  return (
+    <div className='form-field form-field--full'>
+      <label className='form-label'>{label} <span className='required'>*</span></label>
+      <div style={{ position:'relative' }}>
+        <input
+          className='form-input'
+          type={mostrar ? 'text' : 'password'}
+          value={value}
+          onChange={e => onChange(id, e.target.value)}
+          placeholder={placeholder}
+          required
+          autoComplete='new-password'
+          style={{ paddingRight:'40px' }}
+        />
+        <button type='button' onClick={() => onToggle(id)}
+          style={{ position:'absolute', right:'10px', top:'50%', transform:'translateY(-50%)',
+            background:'none', border:'none', cursor:'pointer', color:'#64748b', fontSize:'1rem' }}>
+          {mostrar ? '👁️' : '👁'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function MinhaSenha() {
   const { user } = useAuth()
 
@@ -12,7 +38,8 @@ export default function MinhaSenha() {
   const [msg, setMsg]           = useState(null)
   const [mostrar, setMostrar]   = useState({ senha_atual: false, nova_senha: false, confirmar: false })
 
-  const toggle = campo => setMostrar(prev => ({ ...prev, [campo]: !prev[campo] }))
+  const handleChange = (id, valor) => setForm(prev => ({ ...prev, [id]: valor }))
+  const toggle = id => setMostrar(prev => ({ ...prev, [id]: !prev[id] }))
 
   const handleSubmit = async e => {
     e.preventDefault()
@@ -34,29 +61,6 @@ export default function MinhaSenha() {
     } finally { setSalvando(false) }
   }
 
-  const Campo = ({ id, label, placeholder }) => (
-    <div className='form-field form-field--full'>
-      <label className='form-label'>{label} <span className='required'>*</span></label>
-      <div style={{ position:'relative' }}>
-        <input
-          className='form-input'
-          type={mostrar[id] ? 'text' : 'password'}
-          value={form[id]}
-          onChange={e => setForm(prev => ({ ...prev, [id]: e.target.value }))}
-          placeholder={placeholder}
-          required
-          autoComplete='new-password'
-          style={{ paddingRight:'40px' }}
-        />
-        <button type='button' onClick={() => toggle(id)}
-          style={{ position:'absolute', right:'10px', top:'50%', transform:'translateY(-50%)',
-            background:'none', border:'none', cursor:'pointer', color:'#64748b', fontSize:'1rem' }}>
-          {mostrar[id] ? '👁️' : '👁'}
-        </button>
-      </div>
-    </div>
-  )
-
   return (
     <PageLayout title='🔒 Minha Senha'>
       <div className='inner-card' style={{maxWidth:'480px'}}>
@@ -66,9 +70,15 @@ export default function MinhaSenha() {
         </p>
 
         <form onSubmit={handleSubmit} className='inner-form'>
-          <Campo id='senha_atual' label='Senha Atual'       placeholder='Digite sua senha atual' />
-          <Campo id='nova_senha'  label='Nova Senha'        placeholder='Mínimo 6 caracteres' />
-          <Campo id='confirmar'   label='Confirmar Nova Senha' placeholder='Repita a nova senha' />
+          <CampoSenha id='senha_atual' label='Senha Atual' placeholder='Digite sua senha atual'
+            value={form.senha_atual} onChange={handleChange}
+            mostrar={mostrar.senha_atual} onToggle={toggle} />
+          <CampoSenha id='nova_senha' label='Nova Senha' placeholder='Mínimo 6 caracteres'
+            value={form.nova_senha} onChange={handleChange}
+            mostrar={mostrar.nova_senha} onToggle={toggle} />
+          <CampoSenha id='confirmar' label='Confirmar Nova Senha' placeholder='Repita a nova senha'
+            value={form.confirmar} onChange={handleChange}
+            mostrar={mostrar.confirmar} onToggle={toggle} />
 
           {msg && (
             <div style={{ padding:'10px 14px', borderRadius:'6px', fontSize:'0.85rem', fontWeight:600,
