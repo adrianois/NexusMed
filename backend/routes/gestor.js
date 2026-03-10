@@ -5,6 +5,16 @@ import { autenticar, apenasGestor } from '../lib/auth.js'
 const router = Router()
 router.use(autenticar, apenasGestor)
 
+// Utilitario: busca IDs dos usuarios da clinica
+async function idsClinica(clinica_id) {
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('id')
+    .eq('clinica_id', clinica_id)
+  if (error) throw new Error('Erro ao buscar usuarios: ' + error.message)
+  return (data || []).map(u => u.id)
+}
+
 // GET /gestor/minha-clinica
 router.get('/minha-clinica', async (req, res) => {
   if (!req.usuario.clinica_id) return res.json(null)
@@ -37,59 +47,80 @@ router.patch('/usuarios/:id/aprovar', async (req, res) => {
   res.json(data[0])
 })
 
-// IMPORTANTE: /logs/resumo DEVE vir antes de /logs para o Express nao confundir
-// GET /gestor/logs/resumo
+// GET /gestor/logs/resumo  (DEVE vir antes de /logs)
 router.get('/logs/resumo', async (req, res) => {
-  const clinica_id = req.usuario.clinica_id
-  if (!clinica_id) return res.status(400).json({ error: 'Gestor sem clinica.' })
+  try {
+    const clinica_id = req.usuario.clinica_id
+    if (!clinica_id) return res.status(400).json({ error: 'Gestor sem clinica.' })
 
-  const { data: usuarios } = await supabase.from('usuarios').select('id').eq('clinica_id', clinica_id)
-  const ids = (usuarios || []).map(u => u.id)
-  if (ids.length === 0) return res.json({ total: 0, hoje: 0, acoes: {} })
+    const ids = await idsClinica(clinica_id)
+    if (ids.length === 0) return res.json({ total: 0, hoje: 0, acoes: {} })
 
-  const hoje = new Date()
-  hoje.setHours(0, 0, 0, 0)
+    // Busca todos os logs dos usuarios da clinica (sem paginacao, so acao e data)
+    const { data: todos, error } = await supabase
+      .from('logs')
+      .select('acao, criado_em')
+      .in('usuario_id', ids)
 
-  const { data: todos } = await supabase.from('logs').select('acao, criado_em').in('usuario_id', ids)
-  const registros = todos || []
+    if (error) throw new Error(error.message)
 
-  const acoes = {}
-  let totalHoje = 0
-  for (const r of registros) {
-    acoes[r.acao] = (acoes[r.acao] || 0) + 1
-    if (new Date(r.criado_em) >= hoje) totalHoje++
+    const registros = todos || []
+    const hojeInicio = new Date(); hojeInicio.setHours(0, 0, 0, 0)
+
+    const acoes = {}
+    let totalHoje = 0
+    for (const r of registros) {
+      acoes[r.acao] = (acoes[r.acao] || 0) + 1
+      if (new Date(r.criado_em) >= hojeInicio) totalHoje++
+    }
+
+    res.json({ total: registros.length, hoje: totalHoje, acoes })
+  } catch (e) {
+    console.error('[GET /gestor/logs/resumo]', e.message)
+    res.status(500).json({ error: e.message })
   }
-
-  res.json({ total: registros.length, hoje: totalHoje, acoes })
 })
 
 // GET /gestor/logs
 router.get('/logs', async (req, res) => {
-  const clinica_id = req.usuario.clinica_id
-  if (!clinica_id) return res.status(400).json({ error: 'Gestor sem clinica.' })
+  try {
+    const clinica_id = req.usuario.clinica_id
+    if (!clinica_id) return res.status(400).json({ error: 'Gestor sem clinica.' })
 
-  const { acao, tabela, page = 1 } = req.query
-  const limit  = 50
-  const offset = (Number(page) - 1) * limit
+    const { acao, tabela, page = 1 } = req.query
+    const limit  = 50
+    const offset = (Number(page) - 1) * limit
 
-  const { data: usuarios } = await supabase
-    .from('usuarios').select('id').eq('clinica_id', clinica_id)
+    const ids = await idsClinica(clinica_id)
+    if (ids.length === 0) return res.json({ logs: [], total: 0, page: Number(page), limit })
 
-  const ids = (usuarios || []).map(u => u.id)
-  if (ids.length === 0) return res.json({ logs: [], total: 0, page: Number(page), limit })
+    // Estrategia: busca todos os IDs filtrados primeiro, depois pagina
+    // Isso evita bug do Supabase com .in() + .eq() + .range() combinados
+    let qCount = supabase
+      .from('logs')
+      .select('id', { count: 'exact', head: true })
+      .in('usuario_id', ids)
 
-  let q = supabase.from('logs')
-    .select('*', { count: 'exact' })
-    .in('usuario_id', ids)
-    .order('criado_em', { ascending: false })
-    .range(offset, offset + limit - 1)
+    let qData = supabase
+      .from('logs')
+      .select('*')
+      .in('usuario_id', ids)
+      .order('criado_em', { ascending: false })
+      .range(offset, offset + limit - 1)
 
-  if (acao)   q = q.eq('acao', acao)
-  if (tabela) q = q.eq('tabela', tabela)
+    if (acao)   { qCount = qCount.eq('acao', acao);     qData = qData.eq('acao', acao)   }
+    if (tabela) { qCount = qCount.eq('tabela', tabela); qData = qData.eq('tabela', tabela) }
 
-  const { data, count, error } = await q
-  if (error) return res.status(500).json({ error: error.message })
-  res.json({ logs: data || [], total: count || 0, page: Number(page), limit })
+    const [{ count, error: errCount }, { data, error: errData }] = await Promise.all([qCount, qData])
+
+    if (errCount) throw new Error('count: ' + errCount.message)
+    if (errData)  throw new Error('data: '  + errData.message)
+
+    res.json({ logs: data || [], total: count || 0, page: Number(page), limit })
+  } catch (e) {
+    console.error('[GET /gestor/logs]', e.message)
+    res.status(500).json({ error: e.message })
+  }
 })
 
 export default router
