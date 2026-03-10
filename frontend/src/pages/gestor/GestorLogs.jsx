@@ -34,14 +34,10 @@ function BadgeAcao({ acao }) {
   const cfg = ACAO_CFG[acao] || { color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', label: acao }
   return (
     <span style={{
-      background: cfg.bg,
-      color: cfg.color,
+      background: cfg.bg, color: cfg.color,
       border: `1px solid ${cfg.color}33`,
-      padding: '3px 9px',
-      borderRadius: '12px',
-      fontSize: '0.7rem',
-      fontWeight: 700,
-      whiteSpace: 'nowrap',
+      padding: '3px 9px', borderRadius: '12px',
+      fontSize: '0.7rem', fontWeight: 700, whiteSpace: 'nowrap',
     }}>{cfg.label}</span>
   )
 }
@@ -55,11 +51,16 @@ export default function GestorLogs() {
   const [page,      setPage]      = useState(1)
   const [filtros,   setFiltros]   = useState({ acao: '', tabela: '' })
   const [expandido, setExpandido] = useState(null)
+  const [debug,     setDebug]     = useState(null)
 
   useEffect(() => {
     api.get('/gestor/logs/resumo')
       .then(r => setResumo(r.data))
-      .catch(() => {})
+      .catch(e => {
+        const msg = e.response?.data?.error || e.message
+        console.error('[resumo]', msg)
+        setDebug(prev => ({ ...prev, resumo: msg }))
+      })
   }, [])
 
   const carregar = useCallback(async () => {
@@ -72,9 +73,12 @@ export default function GestorLogs() {
       const { data } = await api.get(`/gestor/logs?${p}`)
       setLogs(data.logs || [])
       setTotal(data.total || 0)
+      setDebug(null)
     } catch (e) {
-      console.error('[GestorLogs]', e)
-      setErro('Erro ao carregar logs. ' + (e.response?.data?.error || ''))
+      const msg = e.response?.data?.error || e.message || 'Erro desconhecido'
+      console.error('[GestorLogs]', msg)
+      setErro(msg)
+      setDebug(prev => ({ ...prev, logs: msg }))
     } finally {
       setLoading(false)
     }
@@ -112,8 +116,7 @@ export default function GestorLogs() {
             background: 'linear-gradient(145deg,#111827,#0f172a)',
             border: `1px solid ${c.color}22`,
             borderTop: `3px solid ${c.color}`,
-            borderRadius: '12px',
-            padding: '18px',
+            borderRadius: '12px', padding: '18px',
             boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
           }}>
             <div style={{ fontSize: '1.5rem', marginBottom: '8px' }}>{c.icon}</div>
@@ -158,9 +161,22 @@ export default function GestorLogs() {
         </div>
       </div>
 
-      {/* Conteúdo */}
+      {/* Box de debug - mostra erro exato do backend */}
+      {debug && (
+        <div style={{
+          background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+          borderRadius: '10px', padding: '14px 18px', marginBottom: '16px',
+          fontFamily: 'monospace', fontSize: '0.82rem', color: '#fca5a5',
+        }}>
+          <strong style={{ display: 'block', marginBottom: '6px', color: '#f87171' }}>🔍 Detalhe do erro:</strong>
+          {Object.entries(debug).map(([k, v]) => (
+            <div key={k}><span style={{ color: '#64748b' }}>{k}:</span> {v}</div>
+          ))}
+        </div>
+      )}
+
       {loading && <p className="page-loading">⏳ Carregando logs...</p>}
-      {erro    && <p className="page-erro">{erro}</p>}
+      {erro && !debug && <p className="page-erro">{erro}</p>}
 
       {!loading && !erro && (
         logs.length === 0
