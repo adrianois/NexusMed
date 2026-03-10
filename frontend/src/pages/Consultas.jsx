@@ -6,6 +6,12 @@ import './InnerPage.css'
 const DIAS_SEMANA = ['dom','seg','ter','qua','qui','sex','sab']
 const FORM_INICIAL = { paciente_id:'', medico_id:'', horario_selecionado:'', data_consulta:'', motivo:'', observacoes:'' }
 
+const STATUS_CONFIG = {
+  agendada:  { label: 'Agendada',   bg: '#1e3a5f', color: '#93c5fd', emoji: '🗓️' },
+  confirmada:{ label: 'Confirmada', bg: '#14532d', color: '#86efac', emoji: '✅' },
+  liberada:  { label: 'Liberada',   bg: '#3b0764', color: '#d8b4fe', emoji: '🔓' },
+}
+
 export default function Consultas() {
   const [consultas,setConsultas]     = useState([])
   const [pacientes,setPacientes]     = useState([])
@@ -17,6 +23,7 @@ export default function Consultas() {
   const [form,setForm]               = useState(FORM_INICIAL)
   const [editandoId,setEditandoId]   = useState(null)
   const [horariosDisponiveis,setHorariosDisponiveis] = useState([])
+  const [alterandoStatus,setAlterandoStatus] = useState(null)
 
   const carregar = () => {
     setLoading(true)
@@ -34,7 +41,7 @@ export default function Consultas() {
     const dia = DIAS_SEMANA[new Date(form.data_consulta+'T12:00:00').getDay()]
     const agenda = medico.agenda[dia]||[]
     const ocupados = consultas
-      .filter(c=>c.medico_id===form.medico_id&&c.data_consulta===form.data_consulta&&c.id!==editandoId)
+      .filter(c=>c.medico_id===form.medico_id&&c.data_consulta===form.data_consulta&&c.id!==editandoId&&c.status!=='liberada')
       .map(c=>c.horario)
     setHorariosDisponiveis(agenda.filter(h=>!ocupados.includes(h)))
     setForm(prev=>({...prev,horario_selecionado:''}))
@@ -67,6 +74,22 @@ export default function Consultas() {
     finally { setSalvando(false) }
   }
 
+  const alterarStatus = async (c, novoStatus) => {
+    if (alterandoStatus) return
+    const msgs = {
+      confirmada: `Confirmar a consulta de "${getNome(pacientes,c.paciente_id)}"?`,
+      liberada:   `Liberar o horário ${c.horario||''} de "${getNome(pacientes,c.paciente_id)}"?\nO horário ficará disponível para outro paciente.`,
+      agendada:   `Reabrir a consulta de "${getNome(pacientes,c.paciente_id)}" como agendada?`,
+    }
+    if (!confirm(msgs[novoStatus])) return
+    setAlterandoStatus(c.id)
+    try {
+      await api.patch(`/consultas/${c.id}/status`, { status: novoStatus })
+      carregar()
+    } catch (err) { alert('Erro: '+(err.response?.data?.error||err.message)) }
+    finally { setAlterandoStatus(null) }
+  }
+
   const excluir = async c => {
     const nomePaciente = pacientes.find(p=>p.id===c.paciente_id)?.nome||''
     if (!confirm(`Excluir a consulta de "${nomePaciente}" em ${formatarData(c.data_consulta)} às ${c.horario||'?'}?`)) return
@@ -77,6 +100,7 @@ export default function Consultas() {
   const getNome = (lista,id) => lista.find(x=>x.id===id)?.nome||'—'
   const formatarData = d => { if(!d) return '—'; const [a,m,dia]=d.split('-'); return `${dia}/${m}/${a}` }
   const medicoSel = medicos.find(m=>m.id===form.medico_id)
+  const getStatus = s => STATUS_CONFIG[s] || STATUS_CONFIG.agendada
 
   return (
     <PageLayout title='📅 Consultas'>
@@ -156,23 +180,65 @@ export default function Consultas() {
           : (
             <div className='table-wrapper'>
               <table className='data-table'>
-                <thead><tr><th>Paciente</th><th>Médico</th><th>Data</th><th>Horário</th><th>Motivo</th><th>Ações</th></tr></thead>
+                <thead><tr><th>Paciente</th><th>Médico</th><th>Data</th><th>Horário</th><th>Motivo</th><th>Status</th><th>Ações</th></tr></thead>
                 <tbody>
-                  {consultas.sort((a,b)=>(a.data_consulta+a.horario)>(b.data_consulta+b.horario)?1:-1).map(c=>(
-                    <tr key={c.id}>
+                  {consultas.sort((a,b)=>(a.data_consulta+a.horario)>(b.data_consulta+b.horario)?1:-1).map(c=>{
+                    const st = getStatus(c.status)
+                    const isLiberada = c.status==='liberada'
+                    return (
+                    <tr key={c.id} style={isLiberada?{opacity:0.55}:{}}>
                       <td style={{fontWeight:600}}>{getNome(pacientes,c.paciente_id)}</td>
                       <td style={{color:'#94a3b8'}}>{c.medico_id?getNome(medicos,c.medico_id):<span style={{color:'#475569'}}>Não informado</span>}</td>
                       <td>{formatarData(c.data_consulta)}</td>
-                      <td><span style={{background:'#1e3a5f',color:'#93c5fd',padding:'2px 8px',borderRadius:'4px',fontSize:'0.8rem',fontWeight:600}}>{c.horario||'—'}</span></td>
+                      <td>
+                        {isLiberada
+                          ? <span style={{background:'#3b0764',color:'#d8b4fe',padding:'2px 8px',borderRadius:'4px',fontSize:'0.8rem',fontWeight:600,textDecoration:'line-through'}}>{c.horario||'—'}</span>
+                          : <span style={{background:'#1e3a5f',color:'#93c5fd',padding:'2px 8px',borderRadius:'4px',fontSize:'0.8rem',fontWeight:600}}>{c.horario||'—'}</span>
+                        }
+                      </td>
                       <td style={{fontSize:'0.88rem'}}>{c.motivo}</td>
                       <td>
-                        <div style={{display:'flex',gap:'6px'}}>
-                          <button className='btn btn-primary' style={{fontSize:'0.72rem',padding:'4px 9px'}} onClick={()=>abrirEdicao(c)}>✏️ Editar</button>
-                          <button className='btn btn-danger'  style={{fontSize:'0.72rem',padding:'4px 9px'}} onClick={()=>excluir(c)}>🗑️ Excluir</button>
+                        <span style={{background:st.bg,color:st.color,padding:'3px 9px',borderRadius:'12px',fontSize:'0.75rem',fontWeight:700,whiteSpace:'nowrap'}}>
+                          {st.emoji} {st.label}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{display:'flex',gap:'5px',flexWrap:'wrap'}}>
+                          {!isLiberada && c.status!=='confirmada' && (
+                            <button
+                              className='btn'
+                              style={{fontSize:'0.72rem',padding:'4px 9px',background:'#14532d',color:'#86efac',border:'1px solid #166534'}}
+                              disabled={alterandoStatus===c.id}
+                              onClick={()=>alterarStatus(c,'confirmada')}>
+                              ✅ Confirmar
+                            </button>
+                          )}
+                          {!isLiberada && (
+                            <button
+                              className='btn'
+                              style={{fontSize:'0.72rem',padding:'4px 9px',background:'#4c1d95',color:'#ddd6fe',border:'1px solid #5b21b6'}}
+                              disabled={alterandoStatus===c.id}
+                              onClick={()=>alterarStatus(c,'liberada')}>
+                              🔓 Liberar
+                            </button>
+                          )}
+                          {isLiberada && (
+                            <button
+                              className='btn'
+                              style={{fontSize:'0.72rem',padding:'4px 9px',background:'#1e3a5f',color:'#93c5fd',border:'1px solid #1d4ed8'}}
+                              disabled={alterandoStatus===c.id}
+                              onClick={()=>alterarStatus(c,'agendada')}>
+                              🗓️ Reagendar
+                            </button>
+                          )}
+                          {!isLiberada && (
+                            <button className='btn btn-primary' style={{fontSize:'0.72rem',padding:'4px 9px'}} onClick={()=>abrirEdicao(c)}>✏️ Editar</button>
+                          )}
+                          <button className='btn btn-danger' style={{fontSize:'0.72rem',padding:'4px 9px'}} onClick={()=>excluir(c)}>🗑️ Excluir</button>
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
