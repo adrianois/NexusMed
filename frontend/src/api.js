@@ -20,8 +20,9 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
-      // Exemplo: se o token expirar, você pode limpar e redirecionar
+    const isAuthRoute = error.config?.url?.includes('/auth/')
+    // Redireciona para login em 401 apenas fora das rotas de autenticacao
+    if (error.response?.status === 401 && !isAuthRoute) {
       localStorage.removeItem("token")
       window.location.href = "/login"
     }
