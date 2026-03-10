@@ -1,9 +1,4 @@
-/* ═══════════════════════════════════════
-   NexusMed — Reset Global
-   Substitui o index.css padrão do Vite
-   que tem display:flex e fundo preto
-   no body, quebrando o layout das páginas
-═══════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -14,9 +9,9 @@
 html, body {
   width: 100%;
   min-height: 100vh;
-  background-color: #ffffff;
-  color: #213547;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #0a0f1e;
+  color: #e2e8f0;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
   line-height: 1.5;
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
@@ -30,22 +25,13 @@ html, body {
   flex-direction: column;
 }
 
-a {
-  color: #1976d2;
-  text-decoration: none;
-}
-a:hover {
-  text-decoration: underline;
-}
+a { color: #60a5fa; text-decoration: none; }
+a:hover { text-decoration: underline; }
 
-/* Remove estilos padrão do Vite em botões
-   (cada componente define o seu próprio estilo) */
-button {
-  font-family: inherit;
-  cursor: pointer;
-}
+button { font-family: inherit; cursor: pointer; }
+img, svg { display: block; max-width: 100%; }
 
-img, svg {
-  display: block;
-  max-width: 100%;
-}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #475569; }
