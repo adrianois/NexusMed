@@ -25,6 +25,7 @@ import AdminUsuarios  from './pages/admin/AdminUsuarios'
 import GestorDashboard   from './pages/gestor/GestorDashboard'
 import GestorUsuarios    from './pages/gestor/GestorUsuarios'
 import GestorTrocarSenha from './pages/gestor/GestorTrocarSenha'
+import GestorLogs        from './pages/gestor/GestorLogs'
 
 export default function App() {
   return (
@@ -48,7 +49,7 @@ export default function App() {
           <Route path='/medicos'      element={<PrivateRoute perfis={['normal','gestor','admin']}><Medicos /></PrivateRoute>} />
           <Route path='/minha-senha'  element={<PrivateRoute perfis={['normal','gestor','admin']}><MinhaSenha /></PrivateRoute>} />
 
-          {/* Cl\u00ednicas: admin e gestor */}
+          {/* Cl\u00ednicas */}
           <Route path='/clinicas' element={<PrivateRoute perfis={['admin','gestor']}><AdminClinicas /></PrivateRoute>} />
 
           {/* Admin */}
@@ -62,6 +63,7 @@ export default function App() {
           <Route path='/gestor'               element={<PrivateRoute perfis={['gestor','admin']}><GestorDashboard /></PrivateRoute>} />
           <Route path='/gestor/usuarios'      element={<PrivateRoute perfis={['gestor','admin']}><GestorUsuarios /></PrivateRoute>} />
           <Route path='/gestor/trocar-senha'  element={<PrivateRoute perfis={['gestor']}><GestorTrocarSenha /></PrivateRoute>} />
+          <Route path='/gestor/logs'          element={<PrivateRoute perfis={['gestor','admin']}><GestorLogs /></PrivateRoute>} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
