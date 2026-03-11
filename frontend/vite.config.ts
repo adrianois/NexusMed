@@ -10,16 +10,7 @@ export default defineConfig({
       },
     }),
   ],
-  server: {
-    proxy: {
-      // Qualquer chamada do frontend para /api/* é redirecionada ao backend
-      // Isso funciona em localhost E no GitHub Codespaces sem precisar
-      // configurar VITE_API_URL manualmente.
-      '/api': {
-        target: 'http://localhost:4000',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-      },
-    },
-  },
+  // Proxy removido: não funciona no Codespaces pois o browser acessa
+  // as portas por URLs públicas distintas. A detecção automática
+  // de ambiente está em src/api.js (função resolveBaseURL).
 })

@@ -1,9 +1,32 @@
 import axios from 'axios'
 
-// Em desenvolvimento com Vite, usamos o proxy (/api -> backend:4000).
-// Em produção ou Codespaces, definir VITE_API_URL no .env do frontend.
+/**
+ * Resolve a baseURL da API em qualquer ambiente:
+ *
+ * 1. Se VITE_API_URL estiver definido no .env → usa ele (produção)
+ * 2. Se estiver no GitHub Codespaces (*.app.github.dev) → troca a porta
+ *    do hostname atual para a porta do backend (4000) automaticamente
+ * 3. Caso contrário (localhost dev) → usa http://localhost:4000
+ */
+function resolveBaseURL() {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+
+  // Detecção automática do Codespaces
+  // Hostname no Codespaces: solid-space-doodle-vwwgvp5969j37qw-PORTA.app.github.dev
+  const { hostname, protocol } = window.location
+  if (hostname.endsWith('.app.github.dev')) {
+    // Substitui a porta no hostname pelo número da porta do backend
+    const backendHost = hostname.replace(/-\d+\.app\.github\.dev$/, '-4000.app.github.dev')
+    return `${protocol}//${backendHost}`
+  }
+
+  return 'http://localhost:4000'
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: resolveBaseURL(),
 })
 
 // Injeta o token JWT em todas as requisições
