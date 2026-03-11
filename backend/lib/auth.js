@@ -3,7 +3,12 @@ import jwt from 'jsonwebtoken'
 const jwtSecret = process.env.JWT_SECRET || 'segredo_super_seguro'
 
 export function autenticar(req, res, next) {
-  const token = req.headers['authorization']?.split(' ')[1]
+  // Aceita token via header Authorization OU via query string ?token=
+  // (query string é necessário para iframes e downloads diretos)
+  const token =
+    req.headers['authorization']?.split(' ')[1] ||
+    req.query?.token
+
   if (!token) return res.sendStatus(401)
   jwt.verify(token, jwtSecret, (err, payload) => {
     if (err) return res.sendStatus(403)
@@ -27,8 +32,8 @@ export function apenasGestor(req, res, next) {
 export function gerarToken(usuario) {
   return jwt.sign(
     {
-      id:         usuario.id,       // ← campo padrao usado em todo o backend
-      usuario_id: usuario.id,       // ← mantido por retrocompatibilidade
+      id:         usuario.id,
+      usuario_id: usuario.id,
       nome:       usuario.nome,
       email:      usuario.email,
       perfil:     usuario.perfil,
