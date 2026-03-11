@@ -37,6 +37,8 @@ function gerarDescricao({ diagnostico, anamnese, conduta }) {
   return partes.length > 0 ? partes.join(' | ') : 'Atendimento médico registrado.'
 }
 
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 router.get('/dashboard', async (req, res) => {
   try {
@@ -89,9 +91,14 @@ router.get('/agenda', async (req, res) => {
 // ── Buscar consulta por ID (uso interno do módulo médico) ───────────────────────
 router.get('/consulta/:id', async (req, res) => {
   try {
+    const { id } = req.params
+    if (!id || !uuidRegex.test(id))
+      return res.status(400).json({ error: 'ID de consulta inválido.' })
+
     const medico_id = await getMedicoId(req)
-    let q = supabase.from('consultas').select('*').eq('id', req.params.id)
-    if (medico_id) q = q.eq('medico_id', medico_id)
+    let q = supabase.from('consultas').select('*').eq('id', id)
+    // Só filtra por medico_id se for UUID válido — evita erro uuid:null
+    if (medico_id && uuidRegex.test(medico_id)) q = q.eq('medico_id', medico_id)
     const { data, error } = await q.maybeSingle()
     if (error) return res.status(500).json({ error: error.message })
     if (!data)  return res.status(404).json({ error: 'Consulta não encontrada.' })
@@ -102,8 +109,11 @@ router.get('/consulta/:id', async (req, res) => {
 // ── Buscar paciente por ID (uso interno do módulo médico) ──────────────────────
 router.get('/paciente/:id', async (req, res) => {
   try {
+    const { id } = req.params
+    if (!id || !uuidRegex.test(id))
+      return res.status(400).json({ error: 'ID de paciente inválido.' })
     const { data, error } = await supabase
-      .from('pacientes').select('*').eq('id', req.params.id).maybeSingle()
+      .from('pacientes').select('*').eq('id', id).maybeSingle()
     if (error) return res.status(500).json({ error: error.message })
     res.json(data || null)
   } catch (e) { res.status(500).json({ error: e.message }) }
