@@ -5,8 +5,26 @@ import { useConfirm } from '../components/ConfirmModal'
 import { useToast } from '../components/Toast'
 import './InnerPage.css'
 
-const FORM_INICIAL = { nome: '', crm: '', especialidade: '', telefone: '', email: '' }
-const USER_FORM    = { email: '', senha: '', confirmar: '' }
+const DIAS_SEMANA = [
+  { key: 'seg', label: 'Segunda-feira' },
+  { key: 'ter', label: 'Terça-feira'   },
+  { key: 'qua', label: 'Quarta-feira'  },
+  { key: 'qui', label: 'Quinta-feira'  },
+  { key: 'sex', label: 'Sexta-feira'   },
+  { key: 'sab', label: 'Sábado'        },
+]
+
+// Gera lista de horários de 07:00 a 21:00 em intervalos de 30min
+const HORARIOS_DISPONIVEIS = Array.from({ length: 29 }, (_, i) => {
+  const total = 7 * 60 + i * 30
+  const h = String(Math.floor(total / 60)).padStart(2, '0')
+  const m = String(total % 60).padStart(2, '0')
+  return `${h}:${m}`
+})
+
+const AGENDA_INICIAL = Object.fromEntries(DIAS_SEMANA.map(d => [d.key, []]))
+const FORM_INICIAL   = { nome: '', crm: '', especialidade: '', telefone: '', email: '' }
+const USER_FORM      = { email: '', senha: '', confirmar: '' }
 
 export default function Medicos() {
   const [medicos,     setMedicos]     = useState([])
@@ -16,8 +34,9 @@ export default function Medicos() {
   const [salvando,    setSalvando]    = useState(false)
   const [busca,       setBusca]       = useState('')
   const [form,        setForm]        = useState(FORM_INICIAL)
-  // Modal de criar usuário
-  const [modalUsuario, setModalUsuario] = useState(null) // medico obj
+  const [agenda,      setAgenda]      = useState(AGENDA_INICIAL)
+  const [diaAberto,   setDiaAberto]   = useState(null)
+  const [modalUsuario, setModalUsuario] = useState(null)
   const [userForm,     setUserForm]     = useState(USER_FORM)
   const [salvandoUser, setSalvandoUser] = useState(false)
   const { confirmar, ConfirmModalUI }   = useConfirm()
@@ -31,10 +50,43 @@ export default function Medicos() {
 
   const handleChange = e => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
 
-  const abrirNovo   = () => { setForm(FORM_INICIAL); setEditando(null); setMostrarForm(true) }
-  const abrirEditar = m  => {
+  // Alterna horário no dia selecionado
+  const toggleHorario = (dia, hora) => {
+    setAgenda(prev => {
+      const atual = prev[dia] || []
+      const nova  = atual.includes(hora) ? atual.filter(h => h !== hora) : [...atual, hora].sort()
+      return { ...prev, [dia]: nova }
+    })
+  }
+
+  // Copia horários de um dia para todos os dias úteis
+  const copiarParaTodos = (dia) => {
+    const horarios = agenda[dia] || []
+    setAgenda(prev => {
+      const novo = { ...prev }
+      DIAS_SEMANA.filter(d => d.key !== 'sab').forEach(d => { novo[d.key] = [...horarios] })
+      return novo
+    })
+    toast('Horários copiados para todos os dias úteis!', 'success')
+  }
+
+  const abrirNovo = () => {
+    setForm(FORM_INICIAL)
+    setAgenda(AGENDA_INICIAL)
+    setDiaAberto(null)
+    setEditando(null)
+    setMostrarForm(true)
+  }
+
+  const abrirEditar = m => {
     setForm({ nome: m.nome||'', crm: m.crm||'', especialidade: m.especialidade||'', telefone: m.telefone||'', email: m.email||'' })
-    setEditando(m.id); setMostrarForm(true)
+    // Carrega agenda salva ou inicializa vazia
+    const agendaSalva = m.agenda || {}
+    const agendaCarregada = Object.fromEntries(DIAS_SEMANA.map(d => [d.key, agendaSalva[d.key] || []]))
+    setAgenda(agendaCarregada)
+    setDiaAberto(null)
+    setEditando(m.id)
+    setMostrarForm(true)
   }
 
   const handleSubmit = async e => {
@@ -42,9 +94,10 @@ export default function Medicos() {
     if (!form.nome || !form.crm) { toast('Nome e CRM são obrigatórios!', 'error'); return }
     setSalvando(true)
     try {
-      if (editando) { await api.put(`/medicos/${editando}`, form); toast('Médico atualizado!', 'success') }
-      else          { await api.post('/medicos', form);            toast('Médico cadastrado!', 'success') }
-      setMostrarForm(false); setEditando(null); setForm(FORM_INICIAL); carregar()
+      const payload = { ...form, agenda }
+      if (editando) { await api.put(`/medicos/${editando}`, payload); toast('Médico atualizado!', 'success') }
+      else          { await api.post('/medicos', payload);            toast('Médico cadastrado!', 'success') }
+      setMostrarForm(false); setEditando(null); setForm(FORM_INICIAL); setAgenda(AGENDA_INICIAL); carregar()
     } catch (err) { toast('Erro: ' + (err.response?.data?.error || err.message), 'error') }
     finally { setSalvando(false) }
   }
@@ -70,7 +123,7 @@ export default function Medicos() {
     setSalvandoUser(true)
     try {
       await api.post('/medico/criar-usuario', { medico_id: modalUsuario.id, email: userForm.email, senha: userForm.senha })
-      toast(`Usuário criado! O médico já pode acessar o sistema.`, 'success')
+      toast('Usuário criado! O médico já pode acessar o sistema.', 'success')
       setModalUsuario(null); setUserForm(USER_FORM); carregar()
     } catch (err) { toast('Erro: ' + (err.response?.data?.error || err.message), 'error') }
     finally { setSalvandoUser(false) }
@@ -82,6 +135,9 @@ export default function Medicos() {
     m.especialidade?.toLowerCase().includes(busca.toLowerCase())
   )
 
+  // Conta total de horários configurados
+  const totalHorarios = Object.values(agenda).reduce((acc, hrs) => acc + hrs.length, 0)
+
   return (
     <PageLayout title='👨‍⚕️ Médicos'>
       <ConfirmModalUI /><ToastUI />
@@ -91,7 +147,7 @@ export default function Medicos() {
           placeholder='🔍 Buscar por nome, CRM ou especialidade...'
           value={busca} onChange={e => setBusca(e.target.value)} />
         <button className={`btn ${mostrarForm ? 'btn-secondary' : 'btn-primary'}`}
-          onClick={() => { if (mostrarForm) { setMostrarForm(false); setEditando(null); setForm(FORM_INICIAL) } else abrirNovo() }}>
+          onClick={() => { if (mostrarForm) { setMostrarForm(false); setEditando(null); setForm(FORM_INICIAL); setAgenda(AGENDA_INICIAL) } else abrirNovo() }}>
           {mostrarForm ? '✖ Cancelar' : '+ Novo Médico'}
         </button>
       </div>
@@ -100,6 +156,8 @@ export default function Medicos() {
         <div className='inner-card'>
           <h3 className='inner-card-title'>{editando ? '✏️ Editar Médico' : 'Cadastrar Novo Médico'}</h3>
           <form onSubmit={handleSubmit} className='inner-form'>
+
+            {/* ─── Dados básicos */}
             <div className='form-field form-field--full'>
               <label className='form-label'>Nome completo <span className='required'>*</span></label>
               <input className='form-input' name='nome' value={form.nome} onChange={handleChange} placeholder='Dr(a). Nome Sobrenome' required />
@@ -120,12 +178,109 @@ export default function Medicos() {
               <label className='form-label'>Email</label>
               <input className='form-input' type='email' name='email' value={form.email} onChange={handleChange} placeholder='email@clinica.com' />
             </div>
+
+            {/* ─── Agenda semanal */}
+            <div className='form-field form-field--full' style={{ marginTop: '8px' }}>
+              <div className='form-section-divider'>
+                <span>📅 Agenda Semanal
+                  {totalHorarios > 0 && (
+                    <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: '#4ade80', fontWeight: 400 }}>
+                      ({totalHorarios} horário{totalHorarios !== 1 ? 's' : ''} configurado{totalHorarios !== 1 ? 's' : ''})
+                    </span>
+                  )}
+                </span>
+              </div>
+            </div>
+
+            {DIAS_SEMANA.map(({ key, label }) => {
+              const aberto   = diaAberto === key
+              const horarios = agenda[key] || []
+              return (
+                <div key={key} className='form-field form-field--full'>
+                  <div
+                    onClick={() => setDiaAberto(aberto ? null : key)}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '10px 14px', borderRadius: '10px', cursor: 'pointer',
+                      background: horarios.length > 0 ? 'rgba(74,222,128,0.07)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${horarios.length > 0 ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.07)'}`,
+                      userSelect: 'none',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '0.9rem', color: horarios.length > 0 ? '#4ade80' : '#64748b' }}>
+                        {horarios.length > 0 ? '✅' : '⬜'}
+                      </span>
+                      <span style={{ color: '#e2e8f0', fontSize: '0.88rem', fontWeight: 600 }}>{label}</span>
+                      {horarios.length > 0 && (
+                        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                          {horarios.length} horário{horarios.length !== 1 ? 's' : ''}: {horarios.slice(0,3).join(', ')}{horarios.length > 3 ? '...' : ''}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {horarios.length > 0 && (
+                        <button
+                          type='button'
+                          onClick={e => { e.stopPropagation(); copiarParaTodos(key) }}
+                          style={{ fontSize: '0.7rem', padding: '3px 8px', borderRadius: '6px', background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)', color: '#60a5fa', cursor: 'pointer' }}
+                        >
+                          📋 Copiar para todos
+                        </button>
+                      )}
+                      <span style={{ color: '#475569', fontSize: '0.8rem' }}>{aberto ? '▲' : '▼'}</span>
+                    </div>
+                  </div>
+
+                  {aberto && (
+                    <div style={{
+                      marginTop: '6px', padding: '14px',
+                      background: 'rgba(15,23,42,0.8)', borderRadius: '10px',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                    }}>
+                      <p style={{ color: '#64748b', fontSize: '0.75rem', marginBottom: '10px' }}>Clique para ativar/desativar horários:</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {HORARIOS_DISPONIVEIS.map(hora => {
+                          const ativo = horarios.includes(hora)
+                          return (
+                            <button
+                              key={hora}
+                              type='button'
+                              onClick={() => toggleHorario(key, hora)}
+                              style={{
+                                padding: '5px 11px', borderRadius: '8px', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 600,
+                                background: ativo ? 'rgba(74,222,128,0.18)' : 'rgba(255,255,255,0.04)',
+                                border:     ativo ? '1px solid rgba(74,222,128,0.5)' : '1px solid rgba(255,255,255,0.08)',
+                                color:      ativo ? '#4ade80' : '#64748b',
+                                transition: 'all 0.15s',
+                              }}
+                            >
+                              {hora}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {horarios.length > 0 && (
+                        <button
+                          type='button'
+                          onClick={() => setAgenda(prev => ({ ...prev, [key]: [] }))}
+                          style={{ marginTop: '10px', fontSize: '0.72rem', padding: '4px 10px', borderRadius: '6px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', color: '#f87171', cursor: 'pointer' }}
+                        >
+                          🗑️ Limpar {label}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+
             <div className='form-actions'>
               <button type='submit' className='btn btn-success' disabled={salvando}>
                 {salvando ? 'Salvando...' : editando ? '✓ Atualizar' : '✓ Cadastrar'}
               </button>
               <button type='button' className='btn btn-secondary'
-                onClick={() => { setMostrarForm(false); setEditando(null); setForm(FORM_INICIAL) }}>Cancelar</button>
+                onClick={() => { setMostrarForm(false); setEditando(null); setForm(FORM_INICIAL); setAgenda(AGENDA_INICIAL) }}>Cancelar</button>
             </div>
           </form>
         </div>
@@ -135,28 +290,38 @@ export default function Medicos() {
       {!loading && (
         <div className='table-wrapper'>
           <table className='data-table'>
-            <thead><tr><th>Nome</th><th>CRM</th><th>Especialidade</th><th>Acesso</th><th>Ações</th></tr></thead>
+            <thead><tr><th>Nome</th><th>CRM</th><th>Especialidade</th><th>Agenda</th><th>Acesso</th><th>Ações</th></tr></thead>
             <tbody>
-              {filtrados.length === 0 && <tr><td colSpan={5} style={{textAlign:'center',color:'#64748b',padding:'2rem'}}>Nenhum médico encontrado.</td></tr>}
-              {filtrados.map(m => (
-                <tr key={m.id}>
-                  <td style={{fontWeight:600}}>{m.nome}</td>
-                  <td style={{color:'#94a3b8',fontSize:'0.85rem'}}>{m.crm||'—'}</td>
-                  <td style={{color:'#94a3b8',fontSize:'0.85rem'}}>{m.especialidade||'—'}</td>
-                  <td>
-                    {m.usuario_id
-                      ? <span style={{ background:'rgba(34,197,94,0.12)', color:'#4ade80', border:'1px solid rgba(34,197,94,0.3)', padding:'2px 10px', borderRadius:'20px', fontSize:'0.72rem', fontWeight:700 }}>✅ Usuário ativo</span>
-                      : <button className='btn btn-primary' style={{fontSize:'0.75rem',padding:'4px 12px'}} onClick={() => { setModalUsuario(m); setUserForm(USER_FORM) }}>🔑 Criar Acesso</button>
-                    }
-                  </td>
-                  <td>
-                    <div style={{display:'flex',gap:'6px'}}>
-                      <button className='btn btn-secondary' style={{fontSize:'0.78rem',padding:'5px 10px'}} onClick={() => abrirEditar(m)}>✏️ Editar</button>
-                      <button className='btn btn-danger'    style={{fontSize:'0.78rem',padding:'5px 10px'}} onClick={() => excluir(m.id, m.nome)}>🗑️ Excluir</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {filtrados.length === 0 && <tr><td colSpan={6} style={{textAlign:'center',color:'#64748b',padding:'2rem'}}>Nenhum médico encontrado.</td></tr>}
+              {filtrados.map(m => {
+                const totalHrs = Object.values(m.agenda || {}).reduce((a, v) => a + (Array.isArray(v) ? v.length : 0), 0)
+                const diasAtivos = Object.entries(m.agenda || {}).filter(([, v]) => Array.isArray(v) && v.length > 0).length
+                return (
+                  <tr key={m.id}>
+                    <td style={{fontWeight:600}}>{m.nome}</td>
+                    <td style={{color:'#94a3b8',fontSize:'0.85rem'}}>{m.crm||'—'}</td>
+                    <td style={{color:'#94a3b8',fontSize:'0.85rem'}}>{m.especialidade||'—'}</td>
+                    <td>
+                      {diasAtivos > 0
+                        ? <span style={{ fontSize:'0.78rem', color:'#4ade80' }}>📅 {diasAtivos} dia{diasAtivos!==1?'s':''} · {totalHrs} horário{totalHrs!==1?'s':''}</span>
+                        : <span style={{ fontSize:'0.78rem', color:'#475569' }}>Sem agenda</span>
+                      }
+                    </td>
+                    <td>
+                      {m.usuario_id
+                        ? <span style={{ background:'rgba(34,197,94,0.12)', color:'#4ade80', border:'1px solid rgba(34,197,94,0.3)', padding:'2px 10px', borderRadius:'20px', fontSize:'0.72rem', fontWeight:700 }}>✅ Usuário ativo</span>
+                        : <button className='btn btn-primary' style={{fontSize:'0.75rem',padding:'4px 12px'}} onClick={() => { setModalUsuario(m); setUserForm(USER_FORM) }}>🔑 Criar Acesso</button>
+                      }
+                    </td>
+                    <td>
+                      <div style={{display:'flex',gap:'6px'}}>
+                        <button className='btn btn-secondary' style={{fontSize:'0.78rem',padding:'5px 10px'}} onClick={() => abrirEditar(m)}>✏️ Editar</button>
+                        <button className='btn btn-danger'    style={{fontSize:'0.78rem',padding:'5px 10px'}} onClick={() => excluir(m.id, m.nome)}>🗑️ Excluir</button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -164,17 +329,8 @@ export default function Medicos() {
 
       {/* Modal criar usuário médico */}
       {modalUsuario && (
-        <div style={{
-          position:'fixed', inset:0, background:'rgba(0,0,0,0.8)',
-          backdropFilter:'blur(8px)', display:'flex', alignItems:'center',
-          justifyContent:'center', zIndex:200, padding:'1rem',
-        }}>
-          <div style={{
-            background:'#0f172a', border:'1px solid rgba(96,165,250,0.2)',
-            borderTop:'3px solid #60a5fa', borderRadius:'18px',
-            padding:'28px 32px', width:'100%', maxWidth:'440px',
-            boxShadow:'0 24px 48px rgba(0,0,0,0.6)',
-          }}>
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:'1rem' }}>
+          <div style={{ background:'#0f172a', border:'1px solid rgba(96,165,250,0.2)', borderTop:'3px solid #60a5fa', borderRadius:'18px', padding:'28px 32px', width:'100%', maxWidth:'440px', boxShadow:'0 24px 48px rgba(0,0,0,0.6)' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
               <div>
                 <h3 style={{ color:'#60a5fa', margin:0, fontSize:'1rem', fontWeight:700 }}>🔑 Criar Acesso ao Sistema</h3>
@@ -202,13 +358,10 @@ export default function Medicos() {
                   placeholder='Repita a senha' required style={{ width:'100%', boxSizing:'border-box' }} />
               </div>
               <div style={{ display:'flex', gap:'10px' }}>
-                <button type='submit' className='btn btn-success' disabled={salvandoUser}
-                  style={{ flex:1, padding:'11px', fontWeight:700 }}>
+                <button type='submit' className='btn btn-success' disabled={salvandoUser} style={{ flex:1, padding:'11px', fontWeight:700 }}>
                   {salvandoUser ? '⏳ Criando...' : '🔑 Criar Acesso'}
                 </button>
-                <button type='button' className='btn btn-secondary'
-                  style={{ padding:'11px 18px' }}
-                  onClick={() => setModalUsuario(null)}>Cancelar</button>
+                <button type='button' className='btn btn-secondary' style={{ padding:'11px 18px' }} onClick={() => setModalUsuario(null)}>Cancelar</button>
               </div>
             </form>
           </div>
