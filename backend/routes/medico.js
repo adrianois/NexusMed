@@ -3,6 +3,7 @@
  */
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
+import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '../lib/supabase.js'
 import { autenticar } from '../lib/auth.js'
 import { registrarLog } from '../lib/log.js'
@@ -39,6 +40,12 @@ function gerarDescricao({ diagnostico, anamnese, conduta }) {
 
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+const TIPOS_DOCUMENTO = [
+  'atestado', 'relatorio', 'receita_simples',
+  'receita_antimicrobiano', 'receita_controle_especial',
+  'solicitacao_exames', 'laudo', 'parecer_tecnico',
+]
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 router.get('/dashboard', async (req, res) => {
   try {
@@ -66,7 +73,7 @@ router.get('/dashboard', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Agenda ───────────────────────────────────────────────────────────────────────
+// ── Agenda ────────────────────────────────────────────────────────────────────
 router.get('/agenda', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
@@ -88,16 +95,14 @@ router.get('/agenda', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Buscar consulta por ID (uso interno do módulo médico) ───────────────────────
+// ── Buscar consulta por ID ─────────────────────────────────────────────────────
 router.get('/consulta/:id', async (req, res) => {
   try {
     const { id } = req.params
     if (!id || !uuidRegex.test(id))
       return res.status(400).json({ error: 'ID de consulta inválido.' })
-
     const medico_id = await getMedicoId(req)
     let q = supabase.from('consultas').select('*').eq('id', id)
-    // Só filtra por medico_id se for UUID válido — evita erro uuid:null
     if (medico_id && uuidRegex.test(medico_id)) q = q.eq('medico_id', medico_id)
     const { data, error } = await q.maybeSingle()
     if (error) return res.status(500).json({ error: error.message })
@@ -106,7 +111,7 @@ router.get('/consulta/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Buscar paciente por ID (uso interno do módulo médico) ──────────────────────
+// ── Buscar paciente por ID ────────────────────────────────────────────────────
 router.get('/paciente/:id', async (req, res) => {
   try {
     const { id } = req.params
@@ -119,7 +124,7 @@ router.get('/paciente/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Triagem ────────────────────────────────────────────────────────────────────────
+// ── Triagem ───────────────────────────────────────────────────────────────────
 router.get('/triagem', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
@@ -137,7 +142,7 @@ router.get('/triagem', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Iniciar atendimento ────────────────────────────────────────────────────────────
+// ── Iniciar atendimento ───────────────────────────────────────────────────────
 router.post('/atendimento/:consulta_id/iniciar', async (req, res) => {
   try {
     const { error } = await supabase.from('consultas')
@@ -148,18 +153,15 @@ router.post('/atendimento/:consulta_id/iniciar', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Finalizar atendimento (prontuário) ───────────────────────────────────────────────
+// ── Finalizar atendimento (prontuário) ────────────────────────────────────────
 router.post('/atendimento/:consulta_id/finalizar', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
     const { anamnese, exame_fisico, diagnostico, cid10, conduta, prescricao, retorno_dias, observacoes } = req.body
-
     const { data: consulta } = await supabase
       .from('consultas').select('paciente_id, clinica_id').eq('id', req.params.consulta_id).single()
     if (!consulta) return res.status(404).json({ error: 'Consulta não encontrada.' })
-
     const descricao = gerarDescricao({ diagnostico, anamnese, conduta })
-
     const { data: pront, error: ep } = await supabase.from('prontuarios')
       .upsert([{
         consulta_id:      req.params.consulta_id,
@@ -179,7 +181,6 @@ router.post('/atendimento/:consulta_id/finalizar', async (req, res) => {
       }], { onConflict: 'consulta_id' })
       .select()
     if (ep) return res.status(400).json({ error: ep.message })
-
     await supabase.from('consultas').update({ status: 'liberada' }).eq('id', req.params.consulta_id)
     await registrarLog({
       usuario: req.usuario, acao: 'criar', tabela: 'prontuarios',
@@ -190,7 +191,7 @@ router.post('/atendimento/:consulta_id/finalizar', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Buscar prontuário existente ────────────────────────────────────────────────────────
+// ── Buscar prontuário existente ───────────────────────────────────────────────
 router.get('/atendimento/:consulta_id', async (req, res) => {
   try {
     const { data, error } = await supabase.from('prontuarios')
@@ -200,7 +201,7 @@ router.get('/atendimento/:consulta_id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Histórico ─────────────────────────────────────────────────────────────────────────────
+// ── Histórico ─────────────────────────────────────────────────────────────────
 router.get('/historico', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
@@ -215,20 +216,17 @@ router.get('/historico', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Criar usuário para médico ───────────────────────────────────────────────────────────
+// ── Criar usuário para médico ─────────────────────────────────────────────────
 router.post('/criar-usuario', async (req, res) => {
   try {
     const { medico_id, email, senha } = req.body
     if (!medico_id || !email || !senha)
       return res.status(400).json({ error: 'medico_id, email e senha são obrigatórios.' })
-
     const { data: medico } = await supabase.from('medicos').select('*').eq('id', medico_id).single()
     if (!medico) return res.status(404).json({ error: 'Médico não encontrado.' })
     if (medico.usuario_id) return res.status(400).json({ error: 'Médico já possui usuário vinculado.' })
-
     const { data: emailEx } = await supabase.from('usuarios').select('id').eq('email', email).limit(1)
     if (emailEx?.length > 0) return res.status(409).json({ error: 'E-mail já cadastrado.' })
-
     const senha_hash = await bcrypt.hash(senha, 10)
     const { data: usuario, error: eu } = await supabase.from('usuarios').insert([{
       nome:       medico.nome,
@@ -239,7 +237,6 @@ router.post('/criar-usuario', async (req, res) => {
       status:     'pendente',
     }]).select().single()
     if (eu) return res.status(400).json({ error: eu.message })
-
     await supabase.from('medicos').update({ usuario_id: usuario.id, email }).eq('id', medico_id)
     await registrarLog({
       usuario: req.usuario, acao: 'criar', tabela: 'usuarios',
@@ -247,6 +244,82 @@ router.post('/criar-usuario', async (req, res) => {
       detalhes: { perfil: 'medico', medico_id, email },
     })
     res.status(201).json({ ok: true, usuario_id: usuario.id })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// DOCUMENTOS MÉDICOS
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── POST /medico/documento — Cria documento ───────────────────────────────────
+router.post('/documento', async (req, res) => {
+  try {
+    const { tipo, consulta_id, dados } = req.body
+    const medicoId = req.usuario.id
+
+    if (!tipo || !TIPOS_DOCUMENTO.includes(tipo))
+      return res.status(400).json({ error: `Tipo inválido. Permitidos: ${TIPOS_DOCUMENTO.join(', ')}` })
+    if (!consulta_id)
+      return res.status(400).json({ error: 'consulta_id é obrigatório.' })
+    if (!dados || typeof dados !== 'object')
+      return res.status(400).json({ error: 'Dados do documento são obrigatórios.' })
+
+    const { data, error } = await supabase
+      .from('documentos_medicos')
+      .insert([{
+        id:          uuidv4(),
+        tipo,
+        consulta_id,
+        medico_id:   medicoId,
+        dados,
+        status:      'pendente_assinatura',
+      }])
+      .select()
+      .single()
+
+    if (error) return res.status(400).json({ error: error.message })
+
+    await registrarLog({
+      usuario: req.usuario, acao: 'criar', tabela: 'documentos_medicos',
+      registro_id: data.id,
+      detalhes: { tipo, consulta_id },
+    })
+
+    res.status(201).json({
+      id:          data.id,
+      tipo:        data.tipo,
+      status:      data.status,
+      arquivo_pdf: data.arquivo_pdf || null,
+    })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── GET /medico/documento/consulta/:consultaId — Lista por consulta ───────────
+router.get('/documento/consulta/:consultaId', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('documentos_medicos')
+      .select('id, tipo, status, arquivo_pdf, created_at')
+      .eq('consulta_id', req.params.consultaId)
+      .order('created_at', { ascending: false })
+    if (error) return res.status(500).json({ error: error.message })
+    res.json(data || [])
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── GET /medico/documento/:id — Detalhes ──────────────────────────────────────
+router.get('/documento/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('documentos_medicos')
+      .select('*')
+      .eq('id', req.params.id)
+      .maybeSingle()
+    if (error) return res.status(500).json({ error: error.message })
+    if (!data)  return res.status(404).json({ error: 'Documento não encontrado.' })
+    if (data.medico_id !== req.usuario.id)
+      return res.status(403).json({ error: 'Acesso negado.' })
+    res.json(data)
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
