@@ -10,7 +10,7 @@ const LABELS = {
   atestado:                  { icon: '📄', label: 'Atestado Médico',        cor: '#60a5fa' },
   relatorio:                 { icon: '📋', label: 'Relatório Médico',        cor: '#a78bfa' },
   receita_simples:           { icon: '💊', label: 'Receita Simples',         cor: '#34d399' },
-  receita_antimicrobiano:    { icon: '🦠', label: 'Receita Antimicrobianos', cor: '#fbbf24' },
+  receita_antimicrobiano:    { icon: '🧫', label: 'Receita Antimicrobianos', cor: '#fbbf24' },
   receita_controle_especial: { icon: '🔒', label: 'Controle Especial',       cor: '#f87171' },
   solicitacao_exames:        { icon: '🔬', label: 'Solicitação de Exames',   cor: '#38bdf8' },
   laudo:                     { icon: '📊', label: 'Laudo',                   cor: '#fb923c' },
@@ -23,6 +23,67 @@ const STATUS_LABEL = {
   cancelado:           { label: 'Cancelado', cor: '#f87171' },
 }
 
+const MED_LABEL = {
+  nome:         'Nome',
+  concentracao: 'Concentração',
+  forma:        'Forma farmacêutica',
+  posologia:    'Posologia',
+  duracao:      'Duração',
+  quantidade:   'Quantidade',
+}
+
+/**
+ * Converte qualquer valor de campo em elemento React legível.
+ * - Array de objetos → lista numerada de cards
+ * - Array de strings → lista numerada simples
+ * - Objeto simples   → chave: valor
+ * - Primitivo        → texto
+ */
+function renderValor(value) {
+  if (Array.isArray(value)) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '2px' }}>
+        {value.map((item, idx) => {
+          if (typeof item === 'object' && item !== null) {
+            return (
+              <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', padding: '8px 10px' }}>
+                <span style={{ fontSize: '0.7rem', color: '#3b82f6', fontWeight: 700 }}>#{idx + 1}</span>
+                {Object.entries(item).map(([k, v]) =>
+                  v ? (
+                    <div key={k} style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                      <span style={{ minWidth: '130px', fontSize: '0.72rem', color: '#475569', fontWeight: 600, textTransform: 'capitalize' }}>
+                        {MED_LABEL[k] || k.replace(/_/g, ' ')}
+                      </span>
+                      <span style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>{String(v)}</span>
+                    </div>
+                  ) : null
+                )}
+              </div>
+            )
+          }
+          return (
+            <div key={idx} style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>
+              {idx + 1}. {String(item)}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+  if (typeof value === 'object' && value !== null) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+        {Object.entries(value).map(([k, v]) => v ? (
+          <span key={k} style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>
+            <strong style={{ color: '#94a3b8' }}>{k.replace(/_/g, ' ')}: </strong>{String(v)}
+          </span>
+        ) : null)}
+      </div>
+    )
+  }
+  return <span style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>{String(value)}</span>
+}
+
 export default function MedicoDocumentos() {
   const [docs,       setDocs]       = useState([])
   const [carregando, setCarregando] = useState(true)
@@ -31,7 +92,7 @@ export default function MedicoDocumentos() {
   const [busca,      setBusca]      = useState('')
   const [docAberto,  setDocAberto]  = useState(null)
   const [pdfAberto,  setPdfAberto]  = useState(null)
-  const [confirmExcluir, setConfirmExcluir] = useState(null) // doc a excluir
+  const [confirmExcluir, setConfirmExcluir] = useState(null)
 
   const carregar = useCallback(async () => {
     setCarregando(true)
@@ -66,7 +127,6 @@ export default function MedicoDocumentos() {
 
   return (
     <PageLayout title='📑 Meus Documentos'>
-      {/* Filtros */}
       <div style={pg.filtros}>
         <input
           style={pg.input}
@@ -106,13 +166,8 @@ export default function MedicoDocumentos() {
         </div>
       )}
 
-      {/* Modal dados */}
-      {docAberto && <ModalVisualizarDoc doc={docAberto} onFechar={() => setDocAberto(null)} />}
-
-      {/* Modal PDF */}
-      {pdfAberto && <ModalPdf doc={pdfAberto} onFechar={() => setPdfAberto(null)} />}
-
-      {/* Modal confirmação de exclusão */}
+      {docAberto     && <ModalVisualizarDoc doc={docAberto}     onFechar={() => setDocAberto(null)} />}
+      {pdfAberto     && <ModalPdf          doc={pdfAberto}     onFechar={() => setPdfAberto(null)} />}
       {confirmExcluir && (
         <ModalConfirmarExclusao
           doc={confirmExcluir}
@@ -124,7 +179,7 @@ export default function MedicoDocumentos() {
   )
 }
 
-// ── Card ──────────────────────────────────────────────────────────────────────
+// ── Card ─────────────────────────────────────────────────────────────────────────────
 function CardDoc({ doc, onVer, onVerPdf, onExcluir }) {
   const meta   = LABELS[doc.tipo] || { icon: '📄', label: doc.tipo, cor: '#64748b' }
   const status = STATUS_LABEL[doc.status] || { label: doc.status, cor: '#64748b' }
@@ -148,14 +203,12 @@ function CardDoc({ doc, onVer, onVerPdf, onExcluir }) {
           <div style={{ fontSize: '0.7rem', color: '#475569', marginTop: '4px' }}>{data}</div>
         </div>
       </div>
-
       <div style={pg.cardAcoes}>
         <button style={pg.btnVer} onClick={onVer}>👁️ Ver dados</button>
         <button style={pg.btnPdf} onClick={onVerPdf}>📄 Ver PDF</button>
         {doc.status === 'pendente_assinatura' && (
           <BotaoAssinar tipoDocumento={doc.tipo} documentoId={doc.id} />
         )}
-        {/* Botão excluir — desabilitado para documentos assinados */}
         <button
           style={{ ...pg.btnExcluir, ...(podeExcluir ? {} : pg.btnExcluirDesabilitado) }}
           onClick={podeExcluir ? onExcluir : undefined}
@@ -169,7 +222,7 @@ function CardDoc({ doc, onVer, onVerPdf, onExcluir }) {
   )
 }
 
-// ── Modal confirmação de exclusão ────────────────────────────────────────────
+// ── Modal confirmação de exclusão ──────────────────────────────────────────────
 function ModalConfirmarExclusao({ doc, onConfirmar, onCancelar }) {
   const meta = LABELS[doc.tipo] || { icon: '📄', label: doc.tipo, cor: '#64748b' }
   return (
@@ -197,7 +250,7 @@ function ModalConfirmarExclusao({ doc, onConfirmar, onCancelar }) {
   )
 }
 
-// ── Modal PDF ─────────────────────────────────────────────────────────────────
+// ── Modal PDF ──────────────────────────────────────────────────────────────────────
 function ModalPdf({ doc, onFechar }) {
   const meta = LABELS[doc.tipo] || { icon: '📄', label: doc.tipo, cor: '#64748b' }
   const [blobUrl, setBlobUrl] = useState(null)
@@ -248,7 +301,7 @@ function ModalPdf({ doc, onFechar }) {
   )
 }
 
-// ── Modal dados ───────────────────────────────────────────────────────────────
+// ── Modal dados ────────────────────────────────────────────────────────────────────
 function ModalVisualizarDoc({ doc, onFechar }) {
   const meta = LABELS[doc.tipo] || { icon: '📄', label: doc.tipo, cor: '#64748b' }
   return (
@@ -263,13 +316,21 @@ function ModalVisualizarDoc({ doc, onFechar }) {
           {doc.paciente_nome && <InfoRow label='Paciente' valor={doc.paciente_nome} />}
           <InfoRow label='Status' valor={STATUS_LABEL[doc.status]?.label || doc.status} />
           <InfoRow label='Data'   valor={doc.created_at ? new Date(doc.created_at).toLocaleString('pt-BR') : '—'} />
+
           {doc.dados && typeof doc.dados === 'object' && (
             <>
               <div style={modal.secLabel}>📋 Dados do Documento</div>
-              {Object.entries(doc.dados).map(([k, v]) => v
-                ? <InfoRow key={k} label={k.replace(/_/g, ' ')} valor={String(v)} />
-                : null
-              )}
+              {Object.entries(doc.dados).map(([k, v]) => {
+                if (v === null || v === undefined || v === '') return null
+                if (Array.isArray(v) && v.length === 0) return null
+                return (
+                  <InfoRow
+                    key={k}
+                    label={k.replace(/_/g, ' ')}
+                    valor={renderValor(v)}
+                  />
+                )
+              })}
             </>
           )}
         </div>
@@ -283,44 +344,50 @@ function ModalVisualizarDoc({ doc, onFechar }) {
   )
 }
 
+// InfoRow agora aceita valor como string OU ReactNode
 function InfoRow({ label, valor }) {
   return (
-    <div style={{ display: 'flex', gap: '12px', padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-      <span style={{ minWidth: '140px', fontSize: '0.75rem', color: '#475569', fontWeight: 600, textTransform: 'capitalize' }}>{label}</span>
-      <span style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>{valor}</span>
+    <div style={{ display: 'flex', gap: '12px', padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', alignItems: 'flex-start' }}>
+      <span style={{ minWidth: '140px', fontSize: '0.75rem', color: '#475569', fontWeight: 600, textTransform: 'capitalize', paddingTop: '2px' }}>{label}</span>
+      <div style={{ flex: 1 }}>
+        {typeof valor === 'string' || typeof valor === 'number'
+          ? <span style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>{valor}</span>
+          : valor
+        }
+      </div>
     </div>
   )
 }
 
-// ── Estilos ───────────────────────────────────────────────────────────────────
+// ── Estilos ──────────────────────────────────────────────────────────────────────
 const pg = {
-  filtros:               { display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' },
-  input:                 { flex: 1, minWidth: '200px', padding: '9px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '8px', color: '#e2e8f0', fontSize: '0.86rem', outline: 'none' },
-  select:                { padding: '9px 12px', background: '#0f172a', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '8px', color: '#e2e8f0', fontSize: '0.84rem', cursor: 'pointer' },
-  lista:                 { display: 'flex', flexDirection: 'column', gap: '12px' },
-  card:                  { background: 'rgba(15,23,42,0.8)', border: '1px solid', borderRadius: '12px', padding: '16px 18px' },
-  cardTop:               { display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '12px' },
-  cardAcoes:             { display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' },
-  btnVer:                { padding: '6px 14px', background: 'rgba(96,165,250,0.1)',   border: '1px solid rgba(96,165,250,0.2)',   borderRadius: '6px', color: '#60a5fa', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' },
-  btnPdf:                { padding: '6px 14px', background: 'rgba(251,191,36,0.1)',   border: '1px solid rgba(251,191,36,0.2)',   borderRadius: '6px', color: '#fbbf24', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' },
-  btnExcluir:            { padding: '6px 14px', background: 'rgba(248,113,113,0.1)',  border: '1px solid rgba(248,113,113,0.2)',  borderRadius: '6px', color: '#f87171', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' },
-  btnExcluirDesabilitado:{ opacity: 0.35, cursor: 'not-allowed' },
-  btnAtualizar:          { padding: '8px 16px', background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.2)',   borderRadius: '8px', color: '#60a5fa', fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit' },
-  centro:                { textAlign: 'center', padding: '60px 20px', color: '#475569' },
+  filtros:                { display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' },
+  input:                  { flex: 1, minWidth: '200px', padding: '9px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '8px', color: '#e2e8f0', fontSize: '0.86rem', outline: 'none' },
+  select:                 { padding: '9px 12px', background: '#0f172a', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '8px', color: '#e2e8f0', fontSize: '0.84rem', cursor: 'pointer' },
+  lista:                  { display: 'flex', flexDirection: 'column', gap: '12px' },
+  card:                   { background: 'rgba(15,23,42,0.8)', border: '1px solid', borderRadius: '12px', padding: '16px 18px' },
+  cardTop:                { display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '12px' },
+  cardAcoes:              { display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' },
+  btnVer:                 { padding: '6px 14px', background: 'rgba(96,165,250,0.1)',  border: '1px solid rgba(96,165,250,0.2)',  borderRadius: '6px', color: '#60a5fa', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' },
+  btnPdf:                 { padding: '6px 14px', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: '6px', color: '#fbbf24', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' },
+  btnExcluir:             { padding: '6px 14px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '6px', color: '#f87171', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' },
+  btnExcluirDesabilitado: { opacity: 0.35, cursor: 'not-allowed' },
+  btnAtualizar:           { padding: '8px 16px', background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '8px', color: '#60a5fa', fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit' },
+  centro:                 { textAlign: 'center', padding: '60px 20px', color: '#475569' },
 }
 
 const modal = {
-  overlay:         { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' },
-  box:             { background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', width: '100%', maxWidth: '560px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-  boxPdf:          { background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', width: '100%', maxWidth: '860px', height: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-  boxAlerta:       { background: '#0f172a', border: '1px solid rgba(248,113,113,0.25)', borderRadius: '16px', padding: '28px 24px', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  header:          { display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)' },
-  fechar:          { marginLeft: '8px', background: 'none', border: 'none', color: '#64748b', fontSize: '1rem', cursor: 'pointer' },
-  btnDownload:     { padding: '5px 12px', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '6px', color: '#4ade80', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  iframe:          { flex: 1, border: 'none', width: '100%', background: '#fff' },
-  corpo:           { padding: '18px 20px', overflowY: 'auto', flex: 1 },
-  centro:          { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', color: '#94a3b8' },
-  secLabel:        { fontSize: '0.7rem', fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '16px 0 8px' },
-  btnCancelar:     { padding: '8px 20px', background: 'transparent', border: '1px solid rgba(148,163,184,0.25)', borderRadius: '8px', color: '#94a3b8', fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' },
+  overlay:           { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' },
+  box:               { background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', width: '100%', maxWidth: '560px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+  boxPdf:            { background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', width: '100%', maxWidth: '860px', height: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+  boxAlerta:         { background: '#0f172a', border: '1px solid rgba(248,113,113,0.25)', borderRadius: '16px', padding: '28px 24px', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  header:            { display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)' },
+  fechar:            { marginLeft: '8px', background: 'none', border: 'none', color: '#64748b', fontSize: '1rem', cursor: 'pointer' },
+  btnDownload:       { padding: '5px 12px', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '6px', color: '#4ade80', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  iframe:            { flex: 1, border: 'none', width: '100%', background: '#fff' },
+  corpo:             { padding: '18px 20px', overflowY: 'auto', flex: 1 },
+  centro:            { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', color: '#94a3b8' },
+  secLabel:          { fontSize: '0.7rem', fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '16px 0 8px' },
+  btnCancelar:       { padding: '8px 20px', background: 'transparent', border: '1px solid rgba(148,163,184,0.25)', borderRadius: '8px', color: '#94a3b8', fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' },
   btnExcluirConfirm: { padding: '8px 20px', background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.35)', borderRadius: '8px', color: '#f87171', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
 }
