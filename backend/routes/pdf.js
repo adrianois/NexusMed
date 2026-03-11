@@ -41,7 +41,6 @@ const CAMPOS_LABEL = {
   assinatura_digital: 'Assinatura Digital',
 }
 
-// Labels internos dos campos de cada medicamento
 const MED_LABEL = {
   nome:          'Nome',
   concentracao:  'Concentração',
@@ -51,13 +50,6 @@ const MED_LABEL = {
   quantidade:    'Quantidade',
 }
 
-/**
- * Converte qualquer valor em texto legível para o PDF.
- * - Array de objetos (medicamentos, exames): formata cada item numerado
- * - Array de strings: junta com quebra de linha
- * - Objeto simples: junta chave: valor
- * - Primitivo: String normal
- */
 function valorParaTexto(key, value) {
   if (Array.isArray(value)) {
     return value.map((item, idx) => {
@@ -82,9 +74,6 @@ function valorParaTexto(key, value) {
   return String(value)
 }
 
-/**
- * Escreve o rodapé rotacionado 90° na margem lateral direita da página.
- */
 function escreverRodapeLateral(pdf, dataFormatada, id) {
   const texto = `Documento gerado em ${dataFormatada} pelo sistema NexusMed — ID: ${id}`
   const pageHeight = pdf.page.height
@@ -112,9 +101,26 @@ router.get('/documento/:id', async (req, res) => {
     if (e1)   return res.status(500).json({ error: e1.message })
     if (!doc) return res.status(404).json({ error: 'Documento não encontrado.' })
 
+    // Busca dados do médico
     const { data: medico } = await supabase
-      .from('medicos').select('nome, crm, especialidade').eq('id', doc.medico_id).maybeSingle()
+      .from('medicos')
+      .select('nome, crm, especialidade, clinica_id')
+      .eq('id', doc.medico_id)
+      .maybeSingle()
 
+    // Busca dados da clínica pelo clinica_id do médico
+    let clinica = null
+    const clinicaId = medico?.clinica_id
+    if (clinicaId) {
+      const { data: cl } = await supabase
+        .from('clinicas')
+        .select('nome, cnpj, endereco, telefone')
+        .eq('id', clinicaId)
+        .maybeSingle()
+      clinica = cl || null
+    }
+
+    // Busca nome do paciente
     let pacienteNome = doc.dados?.paciente || doc.dados?.paciente_nome || null
     if (!pacienteNome && doc.consulta_id) {
       const { data: consulta } = await supabase
@@ -126,8 +132,8 @@ router.get('/documento/:id', async (req, res) => {
       }
     }
 
-    const titulo       = LABELS[doc.tipo] || doc.tipo
-    const dataDoc      = new Date(doc['createdAt'] || Date.now())
+    const titulo        = LABELS[doc.tipo] || doc.tipo
+    const dataDoc       = new Date(doc['createdAt'] || Date.now())
     const dataFormatada = dataDoc.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
 
     const pdf = new PDFDocument({ margin: 60, size: 'A4', bufferPages: true })
@@ -135,20 +141,35 @@ router.get('/documento/:id', async (req, res) => {
     res.setHeader('Content-Disposition', `inline; filename="${doc.tipo}-${id.slice(0,8)}.pdf"`)
     pdf.pipe(res)
 
-    // ── Cabeçalho ───────────────────────────────────────────────────────────
+    // ── Cabeçalho da Clínica ────────────────────────────────────────────────
+    if (clinica) {
+      pdf
+        .fontSize(18).fillColor('#1351B4').text(clinica.nome, { align: 'center' })
+      const infos = []
+      if (clinica.cnpj)     infos.push(`CNPJ: ${clinica.cnpj}`)
+      if (clinica.endereco) infos.push(clinica.endereco)
+      if (clinica.telefone) infos.push(`Tel: ${clinica.telefone}`)
+      if (infos.length > 0) {
+        pdf.fontSize(9).fillColor('#64748b').text(infos.join('  |  '), { align: 'center' })
+      }
+    } else {
+      // Fallback genérico caso não haja clínica vinculada
+      pdf
+        .fontSize(18).fillColor('#1351B4').text('NexusMed', { align: 'center' })
+        .fontSize(9).fillColor('#64748b').text('Sistema de Gestão de Clínicas', { align: 'center' })
+    }
+
     pdf
-      .fontSize(20).fillColor('#1351B4').text('NexusMed', { align: 'center' })
-      .fontSize(10).fillColor('#64748b').text('Sistema de Gestão de Clínicas', { align: 'center' })
       .moveDown(0.5)
       .moveTo(60, pdf.y).lineTo(535, pdf.y).strokeColor('#1351B4').lineWidth(2).stroke()
       .moveDown(0.8)
 
-    // ── Título ─────────────────────────────────────────────────────────────────
+    // ── Título do documento ──────────────────────────────────────────────────
     pdf
-      .fontSize(16).fillColor('#0f172a').text(titulo.toUpperCase(), { align: 'center' })
+      .fontSize(15).fillColor('#0f172a').text(titulo.toUpperCase(), { align: 'center' })
       .moveDown(1)
 
-    // ── Data + Médico + Paciente ────────────────────────────────────────────
+    // ── Data + Médico + Paciente ─────────────────────────────────────────────
     pdf.fontSize(10).fillColor('#475569').text(`Data: ${dataFormatada}`, { align: 'right' }).moveDown(0.5)
 
     if (medico) {
@@ -169,13 +190,12 @@ router.get('/documento/:id', async (req, res) => {
       .moveTo(60, pdf.y).lineTo(535, pdf.y).strokeColor('#e2e8f0').lineWidth(1).stroke()
       .moveDown(0.8)
 
-    // ── Campos do documento ───────────────────────────────────────────────
+    // ── Campos do documento ──────────────────────────────────────────────────
     const dados = doc.dados || {}
     const camposIgnorar = ['paciente', 'paciente_nome', 'assinatura_digital']
 
     Object.entries(dados).forEach(([key, value]) => {
       if (value === undefined || value === null || value === '' || camposIgnorar.includes(key)) return
-      // Ignora arrays vazios
       if (Array.isArray(value) && value.length === 0) return
 
       const label = CAMPOS_LABEL[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
@@ -208,7 +228,7 @@ router.get('/documento/:id', async (req, res) => {
       if (medico?.crm) pdf.text(`CRM: ${medico.crm}`, { align: 'center' })
     }
 
-    // ── Rodapé lateral na página 0 ───────────────────────────────────────────
+    // ── Rodapé lateral ───────────────────────────────────────────────────────
     pdf.switchToPage(0)
     escreverRodapeLateral(pdf, dataFormatada, id)
 
