@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import api from '../../api'
 import PageLayout from '../../components/PageLayout'
 import { useToast } from '../../components/Toast'
+import DocumentosMedicos from '../../components/DocumentosMedicos/index'
 import '../InnerPage.css'
 
 const FORM_VAZIO = {
@@ -34,7 +35,6 @@ export default function MedicoAtendimento() {
   useEffect(() => {
     async function init() {
       try {
-        // Usa rotas exclusivas do módulo médico (sem depender de /consultas)
         const [rconsulta, rpront] = await Promise.all([
           api.get(`/medico/consulta/${consulta_id}`),
           api.get(`/medico/atendimento/${consulta_id}`),
@@ -44,13 +44,11 @@ export default function MedicoAtendimento() {
         setConsulta(c)
         if (c?.status === 'liberada') setSoLeitura(true)
 
-        // Busca paciente pela rota do módulo médico
         if (c?.paciente_id) {
           const rp = await api.get(`/medico/paciente/${c.paciente_id}`)
           setPaciente(rp.data || null)
         }
 
-        // Carrega prontuário existente
         if (rpront.data) {
           const d = rpront.data
           setForm({
@@ -65,7 +63,6 @@ export default function MedicoAtendimento() {
           })
         }
 
-        // Inicia atendimento se ainda não iniciado
         if (c && !['em_atendimento', 'liberada'].includes(c.status)) {
           await api.post(`/medico/atendimento/${consulta_id}/iniciar`).catch(() => {})
         }
@@ -152,7 +149,7 @@ export default function MedicoAtendimento() {
             </div>
           )}
 
-          {/* Formulário */}
+          {/* Formulário de prontuário */}
           <div style={{
             background: 'linear-gradient(145deg,#111827,#0f172a)',
             border: '1px solid rgba(255,255,255,0.07)',
@@ -244,6 +241,17 @@ export default function MedicoAtendimento() {
                 onClick={() => nav(-1)}>← Voltar</button>
             )}
           </div>
+
+          {/* ═══════════════════════════════════════════════════════════
+               PAINEL DE DOCUMENTOS MÉDICOS — aparece sempre,
+               mas os campos internos ficam desabilitados se soLeitura.
+          ════════════════════════════════════════════════════════════ */}
+          <DocumentosMedicos
+            consultaId={consulta_id}
+            paciente={paciente}
+            diagnostico={form.diagnostico}
+            cid10={form.cid10}
+          />
         </>
       )}
     </PageLayout>
