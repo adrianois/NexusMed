@@ -1,6 +1,5 @@
 /**
  * /pdf — Geração de PDF de documentos médicos
- * Rodapé escrito rotacionado na margem lateral direita — nunca cria página extra.
  */
 import { Router } from 'express'
 import PDFDocument from 'pdfkit'
@@ -42,21 +41,58 @@ const CAMPOS_LABEL = {
   assinatura_digital: 'Assinatura Digital',
 }
 
+// Labels internos dos campos de cada medicamento
+const MED_LABEL = {
+  nome:          'Nome',
+  concentracao:  'Concentração',
+  forma:         'Forma farmacêutica',
+  posologia:     'Posologia',
+  duracao:       'Duração',
+  quantidade:    'Quantidade',
+}
+
+/**
+ * Converte qualquer valor em texto legível para o PDF.
+ * - Array de objetos (medicamentos, exames): formata cada item numerado
+ * - Array de strings: junta com quebra de linha
+ * - Objeto simples: junta chave: valor
+ * - Primitivo: String normal
+ */
+function valorParaTexto(key, value) {
+  if (Array.isArray(value)) {
+    return value.map((item, idx) => {
+      if (typeof item === 'object' && item !== null) {
+        const linhas = [`${idx + 1}.`]
+        for (const [k, v] of Object.entries(item)) {
+          if (!v) continue
+          const label = MED_LABEL[k] || k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+          linhas.push(`   ${label}: ${v}`)
+        }
+        return linhas.join('\n')
+      }
+      return `${idx + 1}. ${item}`
+    }).join('\n\n')
+  }
+  if (typeof value === 'object' && value !== null) {
+    return Object.entries(value)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`)
+      .join('\n')
+  }
+  return String(value)
+}
+
 /**
  * Escreve o rodapé rotacionado 90° na margem lateral direita da página.
- * Nunca interfere com o fluxo de conteúdo pois usa coordenadas absolutas
- * fora da área útil (além dos 535px de largura do conteúdo).
  */
 function escreverRodapeLateral(pdf, dataFormatada, id) {
   const texto = `Documento gerado em ${dataFormatada} pelo sistema NexusMed — ID: ${id}`
-  const pageHeight = pdf.page.height  // A4 = 841.89pt
-  const x = pdf.page.width - 14       // margem direita extrema (~581pt)
-  const y = pageHeight / 2            // centro vertical da página
-
+  const pageHeight = pdf.page.height
+  const x = pdf.page.width - 14
+  const y = pageHeight / 2
   pdf.save()
   pdf
-    .fontSize(7)
-    .fillColor('#b0b8c8')
+    .fontSize(7).fillColor('#b0b8c8')
     .rotate(90, { origin: [x, y] })
     .text(texto, x - (pageHeight * 0.35), y, {
       width: pageHeight * 0.7,
@@ -90,12 +126,11 @@ router.get('/documento/:id', async (req, res) => {
       }
     }
 
-    const titulo = LABELS[doc.tipo] || doc.tipo
+    const titulo       = LABELS[doc.tipo] || doc.tipo
     const dataDoc      = new Date(doc['createdAt'] || Date.now())
     const dataFormatada = dataDoc.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
 
     const pdf = new PDFDocument({ margin: 60, size: 'A4', bufferPages: true })
-
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `inline; filename="${doc.tipo}-${id.slice(0,8)}.pdf"`)
     pdf.pipe(res)
@@ -139,11 +174,16 @@ router.get('/documento/:id', async (req, res) => {
     const camposIgnorar = ['paciente', 'paciente_nome', 'assinatura_digital']
 
     Object.entries(dados).forEach(([key, value]) => {
-      if (!value || camposIgnorar.includes(key)) return
+      if (value === undefined || value === null || value === '' || camposIgnorar.includes(key)) return
+      // Ignora arrays vazios
+      if (Array.isArray(value) && value.length === 0) return
+
       const label = CAMPOS_LABEL[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+      const texto = valorParaTexto(key, value)
+
       pdf
         .fontSize(10).fillColor('#1351B4').text(`${label}:`)
-        .fontSize(11).fillColor('#0f172a').text(String(value), { indent: 16 })
+        .fontSize(11).fillColor('#0f172a').text(texto, { indent: 16 })
         .moveDown(0.4)
     })
 
@@ -168,8 +208,7 @@ router.get('/documento/:id', async (req, res) => {
       if (medico?.crm) pdf.text(`CRM: ${medico.crm}`, { align: 'center' })
     }
 
-    // ── Rodapé lateral — escrito após bufferPages, na página 0 (primeira) ────────
-    // switchToPage não cria nova página — apenas reposiciona o cursor de desenho
+    // ── Rodapé lateral na página 0 ───────────────────────────────────────────
     pdf.switchToPage(0)
     escreverRodapeLateral(pdf, dataFormatada, id)
 
