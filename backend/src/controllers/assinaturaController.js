@@ -7,7 +7,11 @@ import {
   assinarDocumento,
   decodificarState,
 } from '../services/assinaturaGovBr.js';
+import { gerarDocumento } from '../services/gerarPdfDocumentos.js';
 import Assinatura from '../models/Assinatura.js';
+import Consulta from '../models/consultaModel.js';
+import Usuario from '../models/Usuario.js';
+import Paciente from '../models/pacienteModel.js';
 
 const UPLOAD_DIR = process.env.ASSINATURA_UPLOAD_DIR || './uploads/assinaturas';
 
@@ -50,7 +54,7 @@ export async function iniciarAssinatura(req, res) {
 
 /**
  * GET /assinatura/callback
- * Callback OAuth. Recebe o code e state do GOV.BR, assina o documento e salva o .p7s.
+ * Callback OAuth. Recebe o code e state do GOV.BR, gera o PDF real, assina e salva o .p7s.
  */
 export async function callbackAssinatura(req, res) {
   try {
@@ -78,9 +82,28 @@ export async function callbackAssinatura(req, res) {
     // Obter access token
     const accessToken = await obterAccessToken(code);
 
-    // TODO: Buscar/gerar o PDF real do documento pelo tipo e ID
-    // Por ora, usando um buffer de exemplo. Substituir pelo serviço de geração de PDF de cada tipo.
-    const pdfBuffer = Buffer.from(`Documento: ${tipoDocumento} | ID: ${documentoId}`);
+    // Buscar dados do médico, paciente e consulta/documento
+    const medico = await Usuario.findByPk(medicoId);
+    if (!medico) {
+      throw new Error('Médico não encontrado');
+    }
+
+    // Buscar consulta/documento original para obter dados
+    const consulta = await Consulta.findByPk(documentoId);
+    if (!consulta) {
+      throw new Error('Consulta/documento não encontrado');
+    }
+
+    const paciente = await Paciente.findByPk(consulta.pacienteId);
+    if (!paciente) {
+      throw new Error('Paciente não encontrado');
+    }
+
+    // Preparar dados para geração do PDF conforme o tipo
+    const dadosPdf = prepararDadosPorTipo(tipoDocumento, medico, paciente, consulta);
+
+    // Gerar o PDF real
+    const pdfBuffer = await gerarDocumento(tipoDocumento, dadosPdf);
 
     // Assinar documento
     const { pacoteP7s, hashBase64 } = await assinarDocumento(pdfBuffer, accessToken);
@@ -102,6 +125,104 @@ export async function callbackAssinatura(req, res) {
   } catch (error) {
     console.error('Erro no callback de assinatura:', error);
     return res.redirect(`${process.env.FRONTEND_URL}/assinatura/erro?motivo=erro_interno`);
+  }
+}
+
+/**
+ * Prepara dados específicos para cada tipo de documento
+ * TODO: Integrar com endpoints reais de API para buscar dados completos
+ */
+function prepararDadosPorTipo(tipoDocumento, medico, paciente, consulta) {
+  const dadosBase = { medico, paciente };
+
+  switch (tipoDocumento) {
+    case 'atestado':
+      return {
+        ...dadosBase,
+        diagnostico: consulta.diagnostico || 'Não especificado',
+        periodoInicio: consulta.dataConsulta,
+        periodoFim: new Date(consulta.dataConsulta.getTime() + 3 * 24 * 60 * 60 * 1000),
+        justificativa: 'Repouso recomendado pelo médico',
+        restricoes: 'Sem atividades físicas intensas',
+      };
+    case 'relatorio':
+      return {
+        ...dadosBase,
+        historico: consulta.historico || 'Consulta realizada',
+        examesRealizados: 'Não informados',
+        diagnostico: consulta.diagnostico || 'Aguardando confirmação',
+        observacoes: 'Documento gerado automaticamente',
+      };
+    case 'receita_simples':
+      return {
+        ...dadosBase,
+        medicamentos: [
+          {
+            nome: 'Dipirona 500mg',
+            dosagem: '500mg',
+            frequencia: '6 em 6 horas',
+            duracao: '7 dias',
+            observacoes: 'Conforme necessário',
+          },
+        ],
+      };
+    case 'receita_antimicrobiano':
+      return {
+        ...dadosBase,
+        indicacao: consulta.diagnostico || 'Infecção',
+        justificativa: 'Identificação de agente patôgeno',
+        medicamentos: [
+          {
+            nome: 'Amoxicilina 500mg',
+            dosagem: '500mg',
+            frequencia: '8 em 8 horas',
+            duracao: '10 dias',
+          },
+        ],
+      };
+    case 'receita_controle_especial':
+      return {
+        ...dadosBase,
+        indicacao: 'Dor crônica',
+        justificativa: 'Falha com outras terapias',
+        medicamentos: [
+          {
+            nome: 'Tramadol 50mg',
+            controlada: 'Opioides',
+            dosagem: '50mg',
+            frequencia: '12 em 12 horas',
+            duracao: '30 dias',
+          },
+        ],
+      };
+    case 'solicitacao_exames':
+      return {
+        ...dadosBase,
+        exames: [
+          { nome: 'Hemograma Completo', descricao: 'Contagem de células', prazo: '24h' },
+          { nome: 'Glicemia de Jejum', descricao: 'Verificar nífvel de glicose', prazo: '24h' },
+        ],
+        observacoes: 'Resultado em jejum obrigatório',
+      };
+    case 'laudo':
+      return {
+        ...dadosBase,
+        procedimento: 'Ecografia',
+        dataRealizado: consulta.dataConsulta,
+        resultados: 'Não foram encontradas alterações significativas',
+        conclusoes: 'Exame sem particularidades',
+        recomendacoes: 'Retorno conforme protocolo de rotina',
+      };
+    case 'parecer_tecnico':
+      return {
+        ...dadosBase,
+        questionamento: 'Avaliação de compatibilidade com atividades laborais',
+        parecer: 'Paciente apto para retomar atividades',
+        fundamentacao: 'Baseado em avaliação clín ica e exames complementares',
+        recomendacoes: 'Acompanhamento médico continuado',
+      };
+    default:
+      return dadosBase;
   }
 }
 
