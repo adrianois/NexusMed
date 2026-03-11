@@ -252,24 +252,20 @@ router.post('/criar-usuario', async (req, res) => {
 // DOCUMENTOS MÉDICOS
 // ════════════════════════════════════════════════════════════════════════════
 
-// ── GET /medico/documentos — Lista todos os documentos do médico logado ───────
-// Busca sem join encadeado (sem FK explícita no schema do Supabase):
-// 1) busca documentos_medicos pelo medico_id
-// 2) busca consultas pelos consulta_ids encontrados
-// 3) busca pacientes pelos paciente_ids encontrados
-// 4) monta paciente_nome no resultado
+// GET /medico/documentos
+// A tabela usa "createdAt" e "updatedAt" (camelCase com aspas) — não created_at
 router.get('/documentos', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
     if (!medico_id)
       return res.status(400).json({ error: 'Médico não encontrado para o usuário autenticado.' })
 
-    // 1) Documentos do médico
+    // 1) Documentos do médico — usa "createdAt" (nome real da coluna)
     const { data: docs, error: e1 } = await supabase
       .from('documentos_medicos')
-      .select('id, tipo, status, dados, arquivo_pdf, created_at, consulta_id')
+      .select('id, tipo, status, dados, arquivo_pdf, "createdAt", consulta_id')
       .eq('medico_id', medico_id)
-      .order('created_at', { ascending: false })
+      .order('"createdAt"', { ascending: false })
       .limit(100)
     if (e1) return res.status(500).json({ error: e1.message })
     if (!docs || docs.length === 0) return res.json([])
@@ -296,11 +292,12 @@ router.get('/documentos', async (req, res) => {
       ;(pacientes || []).forEach(p => { pacienteMap[p.id] = p.nome })
     }
 
-    // 4) Monta resultado
+    // 4) Monta resultado — mapeia "createdAt" para created_at pro frontend
     const resultado = docs.map(d => {
       const paciente_id = consultaMap[d.consulta_id]
       return {
         ...d,
+        created_at: d['createdAt'],
         paciente_nome: pacienteMap[paciente_id] || null,
       }
     })
@@ -309,7 +306,7 @@ router.get('/documentos', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── POST /medico/documento — Cria documento ───────────────────────────────────
+// POST /medico/documento
 router.post('/documento', async (req, res) => {
   try {
     const { tipo, consulta_id, dados } = req.body
@@ -324,7 +321,7 @@ router.post('/documento', async (req, res) => {
       return res.status(400).json({ error: 'Médico não encontrado para o usuário autenticado.' })
     const { data, error } = await supabase
       .from('documentos_medicos')
-      .insert([{ id: crypto.randomUUID(), tipo, consulta_id, medico_id, dados, status: 'pendente_assinatura' }])
+      .insert([{ tipo, consulta_id, medico_id, dados, status: 'pendente_assinatura' }])
       .select()
       .single()
     if (error) return res.status(400).json({ error: error.message })
@@ -336,20 +333,20 @@ router.post('/documento', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── GET /medico/documento/consulta/:consultaId ───────────────────────────────────
+// GET /medico/documento/consulta/:consultaId
 router.get('/documento/consulta/:consultaId', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('documentos_medicos')
-      .select('id, tipo, status, arquivo_pdf, created_at')
+      .select('id, tipo, status, arquivo_pdf, "createdAt"')
       .eq('consulta_id', req.params.consultaId)
-      .order('created_at', { ascending: false })
+      .order('"createdAt"', { ascending: false })
     if (error) return res.status(500).json({ error: error.message })
     res.json(data || [])
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── GET /medico/documento/:id ─────────────────────────────────────────────────────
+// GET /medico/documento/:id
 router.get('/documento/:id', async (req, res) => {
   try {
     const { data, error } = await supabase
