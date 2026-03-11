@@ -96,7 +96,7 @@ router.get('/agenda', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Buscar consulta por ID ─────────────────────────────────────────────────────
+// ── Buscar consulta por ID ──────────────────────────────────────────────────
 router.get('/consulta/:id', async (req, res) => {
   try {
     const { id } = req.params
@@ -112,7 +112,7 @@ router.get('/consulta/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Buscar paciente por ID ────────────────────────────────────────────────────
+// ── Buscar paciente por ID ──────────────────────────────────────────────────
 router.get('/paciente/:id', async (req, res) => {
   try {
     const { id } = req.params
@@ -143,7 +143,7 @@ router.get('/triagem', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Iniciar atendimento ───────────────────────────────────────────────────────
+// ── Iniciar atendimento ──────────────────────────────────────────────────────
 router.post('/atendimento/:consulta_id/iniciar', async (req, res) => {
   try {
     const { error } = await supabase.from('consultas')
@@ -154,7 +154,7 @@ router.post('/atendimento/:consulta_id/iniciar', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Finalizar atendimento (prontuário) ────────────────────────────────────────
+// ── Finalizar atendimento (prontuário) ───────────────────────────────────────
 router.post('/atendimento/:consulta_id/finalizar', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
@@ -192,7 +192,7 @@ router.post('/atendimento/:consulta_id/finalizar', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Buscar prontuário existente ───────────────────────────────────────────────
+// ── Buscar prontuário existente ──────────────────────────────────────────────
 router.get('/atendimento/:consulta_id', async (req, res) => {
   try {
     const { data, error } = await supabase.from('prontuarios')
@@ -217,7 +217,7 @@ router.get('/historico', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Criar usuário para médico ─────────────────────────────────────────────────
+// ── Criar usuário para médico ────────────────────────────────────────────────
 router.post('/criar-usuario', async (req, res) => {
   try {
     const { medico_id, email, senha } = req.body
@@ -253,14 +253,12 @@ router.post('/criar-usuario', async (req, res) => {
 // ════════════════════════════════════════════════════════════════════════════
 
 // GET /medico/documentos
-// A tabela usa "createdAt" e "updatedAt" (camelCase com aspas) — não created_at
 router.get('/documentos', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
     if (!medico_id)
       return res.status(400).json({ error: 'Médico não encontrado para o usuário autenticado.' })
 
-    // 1) Documentos do médico — usa "createdAt" (nome real da coluna)
     const { data: docs, error: e1 } = await supabase
       .from('documentos_medicos')
       .select('id, tipo, status, dados, arquivo_pdf, "createdAt", consulta_id')
@@ -270,38 +268,26 @@ router.get('/documentos', async (req, res) => {
     if (e1) return res.status(500).json({ error: e1.message })
     if (!docs || docs.length === 0) return res.json([])
 
-    // 2) Busca consultas para pegar paciente_id
     const consultaIds = [...new Set(docs.map(d => d.consulta_id).filter(Boolean))]
     let consultaMap = {}
     if (consultaIds.length > 0) {
       const { data: consultas } = await supabase
-        .from('consultas')
-        .select('id, paciente_id')
-        .in('id', consultaIds)
+        .from('consultas').select('id, paciente_id').in('id', consultaIds)
       ;(consultas || []).forEach(c => { consultaMap[c.id] = c.paciente_id })
     }
 
-    // 3) Busca pacientes
     const pacienteIds = [...new Set(Object.values(consultaMap).filter(Boolean))]
     let pacienteMap = {}
     if (pacienteIds.length > 0) {
       const { data: pacientes } = await supabase
-        .from('pacientes')
-        .select('id, nome')
-        .in('id', pacienteIds)
+        .from('pacientes').select('id, nome').in('id', pacienteIds)
       ;(pacientes || []).forEach(p => { pacienteMap[p.id] = p.nome })
     }
 
-    // 4) Monta resultado — mapeia "createdAt" para created_at pro frontend
     const resultado = docs.map(d => {
       const paciente_id = consultaMap[d.consulta_id]
-      return {
-        ...d,
-        created_at: d['createdAt'],
-        paciente_nome: pacienteMap[paciente_id] || null,
-      }
+      return { ...d, created_at: d['createdAt'], paciente_nome: pacienteMap[paciente_id] || null }
     })
-
     res.json(resultado)
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
@@ -322,8 +308,7 @@ router.post('/documento', async (req, res) => {
     const { data, error } = await supabase
       .from('documentos_medicos')
       .insert([{ tipo, consulta_id, medico_id, dados, status: 'pendente_assinatura' }])
-      .select()
-      .single()
+      .select().single()
     if (error) return res.status(400).json({ error: error.message })
     await registrarLog({
       usuario: req.usuario, acao: 'criar', tabela: 'documentos_medicos',
@@ -356,6 +341,56 @@ router.get('/documento/:id', async (req, res) => {
     const medico_id = await getMedicoId(req)
     if (data.medico_id !== medico_id) return res.status(403).json({ error: 'Acesso negado.' })
     res.json(data)
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// DELETE /medico/documento/:id
+// Só permite excluir documentos com status 'pendente_assinatura' ou 'cancelado'
+// Documentos já assinados são protegidos por auditoria
+router.delete('/documento/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    if (!id || !uuidRegex.test(id))
+      return res.status(400).json({ error: 'ID inválido.' })
+
+    const medico_id = await getMedicoId(req)
+    if (!medico_id)
+      return res.status(400).json({ error: 'Médico não encontrado.' })
+
+    // Verifica se o documento pertence ao médico
+    const { data: doc, error: e1 } = await supabase
+      .from('documentos_medicos')
+      .select('id, status, medico_id, tipo')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (e1)   return res.status(500).json({ error: e1.message })
+    if (!doc) return res.status(404).json({ error: 'Documento não encontrado.' })
+
+    // Só o próprio médico (ou admin/gestor) pode excluir
+    const isAdmin = ['admin', 'gestor'].includes(req.usuario.perfil)
+    if (doc.medico_id !== medico_id && !isAdmin)
+      return res.status(403).json({ error: 'Acesso negado.' })
+
+    // Documentos assinados não podem ser excluídos (integridade legal)
+    if (doc.status === 'assinado')
+      return res.status(422).json({
+        error: 'Documentos assinados não podem ser excluídos. Use a opção de cancelamento.',
+      })
+
+    const { error: e2 } = await supabase
+      .from('documentos_medicos')
+      .delete()
+      .eq('id', id)
+
+    if (e2) return res.status(500).json({ error: e2.message })
+
+    await registrarLog({
+      usuario: req.usuario, acao: 'excluir', tabela: 'documentos_medicos',
+      registro_id: id, detalhes: { tipo: doc.tipo, status_anterior: doc.status },
+    })
+
+    res.json({ ok: true, mensagem: 'Documento excluído com sucesso.' })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
