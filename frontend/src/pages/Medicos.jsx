@@ -14,7 +14,6 @@ const DIAS_SEMANA = [
   { key: 'sab', label: 'Sábado'        },
 ]
 
-// Gera lista de horários de 07:00 a 21:00 em intervalos de 30min
 const HORARIOS_DISPONIVEIS = Array.from({ length: 29 }, (_, i) => {
   const total = 7 * 60 + i * 30
   const h = String(Math.floor(total / 60)).padStart(2, '0')
@@ -50,7 +49,6 @@ export default function Medicos() {
 
   const handleChange = e => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
 
-  // Alterna horário no dia selecionado
   const toggleHorario = (dia, hora) => {
     setAgenda(prev => {
       const atual = prev[dia] || []
@@ -59,7 +57,6 @@ export default function Medicos() {
     })
   }
 
-  // Copia horários de um dia para todos os dias úteis
   const copiarParaTodos = (dia) => {
     const horarios = agenda[dia] || []
     setAgenda(prev => {
@@ -71,22 +68,14 @@ export default function Medicos() {
   }
 
   const abrirNovo = () => {
-    setForm(FORM_INICIAL)
-    setAgenda(AGENDA_INICIAL)
-    setDiaAberto(null)
-    setEditando(null)
-    setMostrarForm(true)
+    setForm(FORM_INICIAL); setAgenda(AGENDA_INICIAL); setDiaAberto(null); setEditando(null); setMostrarForm(true)
   }
 
   const abrirEditar = m => {
     setForm({ nome: m.nome||'', crm: m.crm||'', especialidade: m.especialidade||'', telefone: m.telefone||'', email: m.email||'' })
-    // Carrega agenda salva ou inicializa vazia
-    const agendaSalva = m.agenda || {}
+    const agendaSalva    = m.agenda || {}
     const agendaCarregada = Object.fromEntries(DIAS_SEMANA.map(d => [d.key, agendaSalva[d.key] || []]))
-    setAgenda(agendaCarregada)
-    setDiaAberto(null)
-    setEditando(m.id)
-    setMostrarForm(true)
+    setAgenda(agendaCarregada); setDiaAberto(null); setEditando(m.id); setMostrarForm(true)
   }
 
   const handleSubmit = async e => {
@@ -95,8 +84,9 @@ export default function Medicos() {
     setSalvando(true)
     try {
       const payload = { ...form, agenda }
-      if (editando) { await api.put(`/medicos/${editando}`, payload); toast('Médico atualizado!', 'success') }
-      else          { await api.post('/medicos', payload);            toast('Médico cadastrado!', 'success') }
+      // ✔ PATCH para atualizar (backend usa PATCH /:id), POST para criar
+      if (editando) { await api.patch(`/medicos/${editando}`, payload); toast('Médico atualizado!', 'success') }
+      else          { await api.post('/medicos', payload);              toast('Médico cadastrado!', 'success') }
       setMostrarForm(false); setEditando(null); setForm(FORM_INICIAL); setAgenda(AGENDA_INICIAL); carregar()
     } catch (err) { toast('Erro: ' + (err.response?.data?.error || err.message), 'error') }
     finally { setSalvando(false) }
@@ -135,7 +125,6 @@ export default function Medicos() {
     m.especialidade?.toLowerCase().includes(busca.toLowerCase())
   )
 
-  // Conta total de horários configurados
   const totalHorarios = Object.values(agenda).reduce((acc, hrs) => acc + hrs.length, 0)
 
   return (
@@ -156,8 +145,6 @@ export default function Medicos() {
         <div className='inner-card'>
           <h3 className='inner-card-title'>{editando ? '✏️ Editar Médico' : 'Cadastrar Novo Médico'}</h3>
           <form onSubmit={handleSubmit} className='inner-form'>
-
-            {/* ─── Dados básicos */}
             <div className='form-field form-field--full'>
               <label className='form-label'>Nome completo <span className='required'>*</span></label>
               <input className='form-input' name='nome' value={form.nome} onChange={handleChange} placeholder='Dr(a). Nome Sobrenome' required />
@@ -179,7 +166,6 @@ export default function Medicos() {
               <input className='form-input' type='email' name='email' value={form.email} onChange={handleChange} placeholder='email@clinica.com' />
             </div>
 
-            {/* ─── Agenda semanal */}
             <div className='form-field form-field--full' style={{ marginTop: '8px' }}>
               <div className='form-section-divider'>
                 <span>📅 Agenda Semanal
@@ -197,75 +183,52 @@ export default function Medicos() {
               const horarios = agenda[key] || []
               return (
                 <div key={key} className='form-field form-field--full'>
-                  <div
-                    onClick={() => setDiaAberto(aberto ? null : key)}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '10px 14px', borderRadius: '10px', cursor: 'pointer',
+                  <div onClick={() => setDiaAberto(aberto ? null : key)}
+                    style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderRadius:'10px', cursor:'pointer', userSelect:'none',
                       background: horarios.length > 0 ? 'rgba(74,222,128,0.07)' : 'rgba(255,255,255,0.03)',
                       border: `1px solid ${horarios.length > 0 ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.07)'}`,
-                      userSelect: 'none',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '0.9rem', color: horarios.length > 0 ? '#4ade80' : '#64748b' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                      <span style={{ fontSize:'0.9rem', color: horarios.length > 0 ? '#4ade80' : '#64748b' }}>
                         {horarios.length > 0 ? '✅' : '⬜'}
                       </span>
-                      <span style={{ color: '#e2e8f0', fontSize: '0.88rem', fontWeight: 600 }}>{label}</span>
+                      <span style={{ color:'#e2e8f0', fontSize:'0.88rem', fontWeight:600 }}>{label}</span>
                       {horarios.length > 0 && (
-                        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                        <span style={{ fontSize:'0.75rem', color:'#94a3b8' }}>
                           {horarios.length} horário{horarios.length !== 1 ? 's' : ''}: {horarios.slice(0,3).join(', ')}{horarios.length > 3 ? '...' : ''}
                         </span>
                       )}
                     </div>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
                       {horarios.length > 0 && (
-                        <button
-                          type='button'
-                          onClick={e => { e.stopPropagation(); copiarParaTodos(key) }}
-                          style={{ fontSize: '0.7rem', padding: '3px 8px', borderRadius: '6px', background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)', color: '#60a5fa', cursor: 'pointer' }}
-                        >
+                        <button type='button' onClick={e => { e.stopPropagation(); copiarParaTodos(key) }}
+                          style={{ fontSize:'0.7rem', padding:'3px 8px', borderRadius:'6px', background:'rgba(96,165,250,0.15)', border:'1px solid rgba(96,165,250,0.3)', color:'#60a5fa', cursor:'pointer' }}>
                           📋 Copiar para todos
                         </button>
                       )}
-                      <span style={{ color: '#475569', fontSize: '0.8rem' }}>{aberto ? '▲' : '▼'}</span>
+                      <span style={{ color:'#475569', fontSize:'0.8rem' }}>{aberto ? '▲' : '▼'}</span>
                     </div>
                   </div>
-
                   {aberto && (
-                    <div style={{
-                      marginTop: '6px', padding: '14px',
-                      background: 'rgba(15,23,42,0.8)', borderRadius: '10px',
-                      border: '1px solid rgba(255,255,255,0.06)',
-                    }}>
-                      <p style={{ color: '#64748b', fontSize: '0.75rem', marginBottom: '10px' }}>Clique para ativar/desativar horários:</p>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    <div style={{ marginTop:'6px', padding:'14px', background:'rgba(15,23,42,0.8)', borderRadius:'10px', border:'1px solid rgba(255,255,255,0.06)' }}>
+                      <p style={{ color:'#64748b', fontSize:'0.75rem', marginBottom:'10px' }}>Clique para ativar/desativar horários:</p>
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
                         {HORARIOS_DISPONIVEIS.map(hora => {
                           const ativo = horarios.includes(hora)
                           return (
-                            <button
-                              key={hora}
-                              type='button'
-                              onClick={() => toggleHorario(key, hora)}
-                              style={{
-                                padding: '5px 11px', borderRadius: '8px', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 600,
+                            <button key={hora} type='button' onClick={() => toggleHorario(key, hora)}
+                              style={{ padding:'5px 11px', borderRadius:'8px', fontSize:'0.78rem', cursor:'pointer', fontWeight:600, transition:'all 0.15s',
                                 background: ativo ? 'rgba(74,222,128,0.18)' : 'rgba(255,255,255,0.04)',
                                 border:     ativo ? '1px solid rgba(74,222,128,0.5)' : '1px solid rgba(255,255,255,0.08)',
                                 color:      ativo ? '#4ade80' : '#64748b',
-                                transition: 'all 0.15s',
-                              }}
-                            >
-                              {hora}
-                            </button>
+                              }}>{hora}</button>
                           )
                         })}
                       </div>
                       {horarios.length > 0 && (
-                        <button
-                          type='button'
-                          onClick={() => setAgenda(prev => ({ ...prev, [key]: [] }))}
-                          style={{ marginTop: '10px', fontSize: '0.72rem', padding: '4px 10px', borderRadius: '6px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', color: '#f87171', cursor: 'pointer' }}
-                        >
+                        <button type='button' onClick={() => setAgenda(prev => ({ ...prev, [key]: [] }))}
+                          style={{ marginTop:'10px', fontSize:'0.72rem', padding:'4px 10px', borderRadius:'6px', background:'rgba(248,113,113,0.1)', border:'1px solid rgba(248,113,113,0.2)', color:'#f87171', cursor:'pointer' }}>
                           🗑️ Limpar {label}
                         </button>
                       )}
@@ -294,7 +257,7 @@ export default function Medicos() {
             <tbody>
               {filtrados.length === 0 && <tr><td colSpan={6} style={{textAlign:'center',color:'#64748b',padding:'2rem'}}>Nenhum médico encontrado.</td></tr>}
               {filtrados.map(m => {
-                const totalHrs = Object.values(m.agenda || {}).reduce((a, v) => a + (Array.isArray(v) ? v.length : 0), 0)
+                const totalHrs   = Object.values(m.agenda || {}).reduce((a, v) => a + (Array.isArray(v) ? v.length : 0), 0)
                 const diasAtivos = Object.entries(m.agenda || {}).filter(([, v]) => Array.isArray(v) && v.length > 0).length
                 return (
                   <tr key={m.id}>
@@ -327,7 +290,6 @@ export default function Medicos() {
         </div>
       )}
 
-      {/* Modal criar usuário médico */}
       {modalUsuario && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:'1rem' }}>
           <div style={{ background:'#0f172a', border:'1px solid rgba(96,165,250,0.2)', borderTop:'3px solid #60a5fa', borderRadius:'18px', padding:'28px 32px', width:'100%', maxWidth:'440px', boxShadow:'0 24px 48px rgba(0,0,0,0.6)' }}>
