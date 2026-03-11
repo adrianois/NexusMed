@@ -4,6 +4,13 @@ import PageLayout from '../../components/PageLayout'
 import { useConfirm } from '../../components/ConfirmModal'
 import { useToast } from '../../components/Toast'
 
+const PERFIL_CFG = {
+  normal:  { color: '#60a5fa', label: 'Normal'  },
+  gestor:  { color: '#a78bfa', label: 'Gestor'  },
+  medico:  { color: '#4ade80', label: '🩺 Médico' },
+  admin:   { color: '#fb923c', label: 'Admin'   },
+}
+
 export default function GestorUsuarios() {
   const [usuarios,     setUsuarios]     = useState([])
   const [loading,      setLoading]      = useState(true)
@@ -13,7 +20,9 @@ export default function GestorUsuarios() {
 
   const carregar = () => {
     setLoading(true)
-    api.get('/gestor/usuarios/pendentes').then(r => setUsuarios(r.data || [])).finally(() => setLoading(false))
+    api.get('/gestor/usuarios/pendentes')
+      .then(r => setUsuarios(r.data || []))
+      .finally(() => setLoading(false))
   }
   useEffect(() => { carregar() }, [])
 
@@ -54,37 +63,68 @@ export default function GestorUsuarios() {
   return (
     <PageLayout title='⏳ Aprovar Usuários'>
       <ConfirmModalUI /><ToastUI />
+
       {loading && <p className='page-loading'>Carregando...</p>}
+
       {!loading && usuarios.length === 0 && (
         <div className='page-vazio-box'>
           <span className='page-vazio-icon'>✅</span>
           <p>Nenhum usuário pendente de aprovação.</p>
         </div>
       )}
+
       {!loading && usuarios.length > 0 && (
         <div className='table-wrapper'>
           <table className='data-table'>
-            <thead><tr><th>Nome</th><th>Email</th><th>Perfil</th><th>Ações</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Email</th>
+                <th>Perfil</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
             <tbody>
-              {usuarios.map(u => (
-                <tr key={u.id}>
-                  <td style={{fontWeight:600}}>{u.nome}</td>
-                  <td style={{color:'#94a3b8',fontSize:'0.85rem'}}>{u.email}</td>
-                  <td><span className='badge badge-ativo'>{u.perfil}</span></td>
-                  <td>
-                    <div style={{display:'flex',gap:'8px'}}>
-                      <button className='btn btn-success' style={{fontSize:'0.8rem',padding:'6px 14px'}}
-                        disabled={salvando === u.id} onClick={() => aprovar(u.id, u.nome)}>
-                        {salvando === u.id ? '...' : '✓ Aprovar'}
-                      </button>
-                      <button className='btn btn-danger' style={{fontSize:'0.8rem',padding:'6px 14px'}}
-                        disabled={salvando === u.id} onClick={() => rejeitar(u.id, u.nome)}>
-                        ✕ Rejeitar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {usuarios.map(u => {
+                const cfg = PERFIL_CFG[u.perfil] || { color: '#64748b', label: u.perfil }
+                return (
+                  <tr key={u.id}>
+                    <td style={{ fontWeight: 600 }}>{u.nome}</td>
+                    <td style={{ color: '#94a3b8', fontSize: '0.85rem' }}>{u.email}</td>
+                    <td>
+                      <span style={{
+                        background: `${cfg.color}18`,
+                        color: cfg.color,
+                        border: `1px solid ${cfg.color}44`,
+                        padding: '2px 10px',
+                        borderRadius: '20px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                      }}>{cfg.label}</span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          className='btn btn-success'
+                          style={{ fontSize: '0.8rem', padding: '6px 14px' }}
+                          disabled={salvando === u.id}
+                          onClick={() => aprovar(u.id, u.nome)}
+                        >
+                          {salvando === u.id ? '...' : '✓ Aprovar'}
+                        </button>
+                        <button
+                          className='btn btn-danger'
+                          style={{ fontSize: '0.8rem', padding: '6px 14px' }}
+                          disabled={salvando === u.id}
+                          onClick={() => rejeitar(u.id, u.nome)}
+                        >
+                          ✕ Rejeitar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

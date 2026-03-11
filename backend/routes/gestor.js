@@ -17,14 +17,16 @@ router.get('/minha-clinica', async (req, res) => {
 })
 
 // GET /gestor/usuarios/pendentes
+// Retorna TODOS os usuários pendentes da clínica (normal, gestor, medico)
 router.get('/usuarios/pendentes', async (req, res) => {
   if (!req.usuario.clinica_id) return res.status(400).json({ error: 'Gestor sem clinica.' })
   const { data, error } = await supabase.from('usuarios')
-    .select('id,nome,email,perfil,status')
+    .select('id,nome,email,perfil,status,clinica_id')
     .eq('clinica_id', req.usuario.clinica_id)
     .eq('status', 'pendente')
+    .order('nome', { ascending: true })
   if (error) return res.status(500).json({ error: error.message })
-  res.json(data)
+  res.json(data || [])
 })
 
 // PATCH /gestor/usuarios/:id/aprovar
@@ -43,7 +45,6 @@ router.get('/logs/resumo', async (req, res) => {
     const clinica_id = req.usuario.clinica_id
     if (!clinica_id) return res.status(400).json({ error: 'Gestor sem clinica.' })
 
-    // A tabela logs ja tem clinica_id — filtro direto, sem join
     const { data, error } = await supabase
       .from('logs')
       .select('acao, criado_em')
@@ -79,7 +80,6 @@ router.get('/logs', async (req, res) => {
     const limit  = 50
     const offset = (Number(page) - 1) * limit
 
-    // Filtro direto por clinica_id — sem necessidade de buscar IDs de usuarios
     let qCount = supabase
       .from('logs')
       .select('id', { count: 'exact', head: true })
