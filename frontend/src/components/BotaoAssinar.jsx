@@ -18,11 +18,13 @@ const ROTULOS = {
 const TIPOS_ATENCAO = ['receita_antimicrobiano', 'receita_controle_especial', 'laudo']
 
 export default function BotaoAssinar({ tipoDocumento, documentoId, assinado: assinadoInicial = false, dataAssinatura: dataInicial = null, onAssinado }) {
-  const [estado, setEstado]       = useState('idle')  // idle | carregando | erro
+  const [estado, setEstado]       = useState('idle')
   const [assinado, setAssinado]   = useState(assinadoInicial)
   const [dataAssinatura, setData] = useState(dataInicial)
+  const [hashDoc, setHashDoc]     = useState(null)
   const [erro, setErro]           = useState(null)
   const [mostrarAviso, setAviso]  = useState(false)
+  const [copiado, setCopiado]     = useState(false)
 
   useEffect(() => {
     if (assinadoInicial) return
@@ -33,6 +35,7 @@ export default function BotaoAssinar({ tipoDocumento, documentoId, assinado: ass
         if (!cancelado && data.assinado) {
           setAssinado(true)
           setData(data.dataAssinatura)
+          setHashDoc(data.hash || null)
           onAssinado?.(data)
         }
       } catch (_) { /* silencioso */ }
@@ -53,26 +56,23 @@ export default function BotaoAssinar({ tipoDocumento, documentoId, assinado: ass
     try {
       const { data } = await api.post('/assinatura/iniciar', { tipoDocumento, documentoId })
 
-      // ── Resposta MOCK (desenvolvimento sem GOV_BR_CLIENT_ID) ────────────
       if (data.mock) {
         setAssinado(true)
         setData(data.dataAssinatura)
+        setHashDoc(data.hash || null)
         setEstado('idle')
         onAssinado?.(data)
         return
       }
 
-      // ── Resposta PRODUÇÃO: redireciona para GOV.BR ──────────────────
       if (data.url) {
         setEstado('redirecionando')
         setTimeout(() => { window.location.href = data.url }, 500)
         return
       }
 
-      // Fallback: resposta inesperada
       setErro('Resposta inesperada do servidor.')
       setEstado('erro')
-
     } catch (e) {
       const mensagem = e.response?.data?.erro || 'Erro ao iniciar assinatura. Tente novamente.'
       setErro(mensagem)
@@ -80,22 +80,53 @@ export default function BotaoAssinar({ tipoDocumento, documentoId, assinado: ass
     }
   }, [tipoDocumento, documentoId, mostrarAviso, onAssinado])
 
+  const handleValidar = useCallback(async () => {
+    // Copia o hash/ID para clipboard e abre o site do ITI
+    const textoParaCopiar = hashDoc || documentoId
+    try {
+      await navigator.clipboard.writeText(textoParaCopiar)
+      setCopiado(true)
+      setTimeout(() => setCopiado(false), 3000)
+    } catch (_) { /* clipboard indisponível — abre mesmo assim */ }
+    window.open('https://validar.iti.gov.br', '_blank', 'noopener,noreferrer')
+  }, [hashDoc, documentoId])
+
   // ── JÁ ASSINADO ───────────────────────────────────────────────
   if (assinado) {
     return (
-      <div style={estilos.badgeAssinado}>
-        <span style={{ fontSize: '1rem' }}>✅</span>
-        <div>
-          <span style={estilos.badgeTexto}>Assinado digitalmente com GOV.BR</span>
-          {dataAssinatura && (
-            <span style={estilos.badgeData}>
-              {new Date(dataAssinatura).toLocaleString('pt-BR')}
-            </span>
-          )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={estilos.badgeAssinado}>
+          <span style={{ fontSize: '1rem' }}>✅</span>
+          <div style={{ flex: 1 }}>
+            <span style={estilos.badgeTexto}>Assinado digitalmente com GOV.BR</span>
+            {dataAssinatura && (
+              <span style={estilos.badgeData}>
+                {new Date(dataAssinatura).toLocaleString('pt-BR')}
+              </span>
+            )}
+          </div>
+          <button onClick={handleValidar} style={estilos.btnValidar}>
+            {copiado ? '✅ Hash copiado!' : '🔍 Validar'}
+          </button>
         </div>
-        <a href='https://validar.iti.gov.br' target='_blank' rel='noopener noreferrer' style={estilos.linkValidar}>
-          Validar
-        </a>
+
+        {/* Exibe o hash para o médico poder copiar manualmente */}
+        {(hashDoc || documentoId) && (
+          <div style={estilos.hashBox}>
+            <span style={estilos.hashLabel}>Hash do documento:</span>
+            <code style={estilos.hashCodigo}>{hashDoc || documentoId}</code>
+            <button
+              style={estilos.btnCopiarHash}
+              onClick={async () => {
+                await navigator.clipboard.writeText(hashDoc || documentoId).catch(() => {})
+                setCopiado(true)
+                setTimeout(() => setCopiado(false), 2000)
+              }}
+            >
+              {copiado ? '✅' : '📋 Copiar'}
+            </button>
+          </div>
+        )}
       </div>
     )
   }
@@ -151,10 +182,7 @@ export default function BotaoAssinar({ tipoDocumento, documentoId, assinado: ass
            'Assinar com GOV.BR'}
         </span>
       </button>
-
-      {estado === 'erro' && (
-        <span style={estilos.erroTexto}>⚠ {erro}</span>
-      )}
+      {estado === 'erro' && <span style={estilos.erroTexto}>⚠ {erro}</span>}
     </div>
   )
 }
@@ -180,8 +208,8 @@ const estilos = {
     cursor: 'pointer', transition: 'all 0.18s ease',
     boxShadow: '0 2px 8px rgba(19,81,180,0.35)', whiteSpace: 'nowrap',
   },
-  btnOcupado: { opacity: 0.7, cursor: 'not-allowed', background: 'linear-gradient(135deg, #2a5dbf 0%, #1a4aad 100%)' },
-  btnTexto:   { letterSpacing: '0.01em' },
+  btnOcupado:  { opacity: 0.7, cursor: 'not-allowed', background: 'linear-gradient(135deg, #2a5dbf 0%, #1a4aad 100%)' },
+  btnTexto:    { letterSpacing: '0.01em' },
   badgeAssinado: {
     display: 'inline-flex', alignItems: 'center', gap: '10px',
     padding: '8px 14px',
@@ -190,7 +218,26 @@ const estilos = {
   },
   badgeTexto:  { color: '#4ade80', fontWeight: '600', display: 'block', fontSize: '0.85rem' },
   badgeData:   { color: '#64748b', fontSize: '0.75rem', display: 'block', marginTop: '2px' },
-  linkValidar: { color: '#60a5fa', fontSize: '0.78rem', textDecoration: 'underline', whiteSpace: 'nowrap', marginLeft: '4px' },
+  btnValidar: {
+    padding: '5px 12px', background: 'rgba(96,165,250,0.1)',
+    border: '1px solid rgba(96,165,250,0.25)', borderRadius: '6px',
+    color: '#60a5fa', fontSize: '0.78rem', cursor: 'pointer',
+    whiteSpace: 'nowrap', fontFamily: 'inherit',
+  },
+  hashBox: {
+    display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap',
+    padding: '7px 10px',
+    background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+    borderRadius: '6px',
+  },
+  hashLabel:    { fontSize: '0.72rem', color: '#475569', fontWeight: 600, whiteSpace: 'nowrap' },
+  hashCodigo:   { fontSize: '0.72rem', color: '#94a3b8', wordBreak: 'break-all', flex: 1 },
+  btnCopiarHash:{
+    padding: '3px 10px', background: 'rgba(96,165,250,0.08)',
+    border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px',
+    color: '#60a5fa', fontSize: '0.72rem', cursor: 'pointer',
+    whiteSpace: 'nowrap', fontFamily: 'inherit',
+  },
   avisoContainer: {
     background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.3)',
     borderLeft: '3px solid #fbbf24', borderRadius: '8px', padding: '14px 16px', maxWidth: '420px',
