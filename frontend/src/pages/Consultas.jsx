@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import api from '../api'
 import PageLayout from '../components/PageLayout'
 import { useConfirm } from '../components/ConfirmModal'
@@ -13,32 +13,32 @@ const STATUS_CFG = {
   liberada:   { color: '#94a3b8', bg: 'rgba(148,163,184,0.1)',  label: 'Liberada'   },
 }
 
+// Mapeia Date.getDay() para chave da agenda
+const DIA_MAP = { 0: null, 1: 'seg', 2: 'ter', 3: 'qua', 4: 'qui', 5: 'sex', 6: 'sab' }
+
 const FORM_INICIAL = { paciente_id: '', medico_id: '', data_consulta: '', horario: '', motivo: '', observacoes: '', status: 'agendada' }
 
 function BadgeStatus({ status }) {
   const cfg = STATUS_CFG[status] || { color: '#64748b', bg: 'transparent', label: status }
   return (
-    <span style={{
-      background: cfg.bg, color: cfg.color,
-      border: `1px solid ${cfg.color}33`,
-      padding: '2px 10px', borderRadius: '20px',
-      fontSize: '0.72rem', fontWeight: 700,
-    }}>{cfg.label}</span>
+    <span style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}33`, padding: '2px 10px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: 700 }}>
+      {cfg.label}
+    </span>
   )
 }
 
 export default function Consultas() {
-  const [consultas,    setConsultas]    = useState([])
-  const [pacientes,    setPacientes]    = useState([])
-  const [medicos,      setMedicos]      = useState([])
-  const [loading,      setLoading]      = useState(true)
-  const [mostrarForm,  setMostrarForm]  = useState(false)
-  const [editando,     setEditando]     = useState(null)
-  const [salvando,     setSalvando]     = useState(false)
-  const [busca,        setBusca]        = useState('')
-  const [form,         setForm]         = useState(FORM_INICIAL)
-  const { confirmar, ConfirmModalUI }   = useConfirm()
-  const { toast, ToastUI }              = useToast()
+  const [consultas,   setConsultas]   = useState([])
+  const [pacientes,   setPacientes]   = useState([])
+  const [medicos,     setMedicos]     = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [mostrarForm, setMostrarForm] = useState(false)
+  const [editando,    setEditando]    = useState(null)
+  const [salvando,    setSalvando]    = useState(false)
+  const [busca,       setBusca]       = useState('')
+  const [form,        setForm]        = useState(FORM_INICIAL)
+  const { confirmar, ConfirmModalUI } = useConfirm()
+  const { toast, ToastUI }            = useToast()
 
   const carregar = async () => {
     setLoading(true)
@@ -51,7 +51,40 @@ export default function Consultas() {
 
   const nomePaciente = id => pacientes.find(p => p.id === id)?.nome || '—'
   const nomeMedico   = id => medicos.find(m => m.id === id)?.nome  || '—'
-  const handleChange = e => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
+
+  // ─── Calcula horários disponíveis para o médico+data selecionados ───────────────
+  const horariosDisponiveis = useMemo(() => {
+    if (!form.medico_id || !form.data_consulta) return []
+
+    const medico = medicos.find(m => m.id === form.medico_id)
+    if (!medico?.agenda) return []
+
+    // Descobre o dia da semana da data selecionada
+    const [ano, mes, dia] = form.data_consulta.split('-').map(Number)
+    const diaSemana = new Date(ano, mes - 1, dia).getDay()
+    const chave = DIA_MAP[diaSemana]
+    if (!chave) return [] // domingo sem agenda
+
+    const horariosAgenda = medico.agenda[chave] || []
+    if (horariosAgenda.length === 0) return []
+
+    // Horários já ocupados nessa data (excluindo a própria consulta editada)
+    const ocupados = consultas
+      .filter(c => c.medico_id === form.medico_id && c.data_consulta === form.data_consulta && c.id !== editando)
+      .map(c => c.horario)
+
+    return horariosAgenda.map(h => ({ hora: h, ocupado: ocupados.includes(h) }))
+  }, [form.medico_id, form.data_consulta, medicos, consultas, editando])
+
+  const handleChange = e => {
+    const { name, value } = e.target
+    setForm(prev => ({
+      ...prev,
+      [name]: value,
+      // Limpa horário ao trocar médico ou data
+      ...(name === 'medico_id' || name === 'data_consulta' ? { horario: '' } : {})
+    }))
+  }
 
   const abrirNovo   = () => { setForm(FORM_INICIAL); setEditando(null); setMostrarForm(true) }
   const abrirEditar = c  => {
@@ -83,14 +116,12 @@ export default function Consultas() {
     const ok = await confirmar({
       titulo: 'Excluir Consulta',
       mensagem: 'Deseja excluir esta consulta? Ela não pode ter prontuários vinculados.',
-      labelOk: 'Excluir',
-      tipo: 'danger',
+      labelOk: 'Excluir', tipo: 'danger',
     })
     if (!ok) return
     try {
       await api.delete(`/consultas/${id}`)
-      toast('Consulta excluída.', 'success')
-      carregar()
+      toast('Consulta excluída.', 'success'); carregar()
     } catch (err) { toast('Erro: ' + (err.response?.data?.error || err.message), 'error') }
   }
 
@@ -108,6 +139,17 @@ export default function Consultas() {
     triado:     ['liberada'],
     liberada:   [],
   }
+
+  // Dica de status do campo horário
+  const dicaHorario = () => {
+    if (!form.medico_id)       return { texto: 'Selecione um médico primeiro', cor: '#475569' }
+    if (!form.data_consulta)   return { texto: 'Selecione uma data primeiro',  cor: '#475569' }
+    if (horariosDisponiveis.length === 0) return { texto: '⚠️ Médico sem horários configurados para este dia', cor: '#fbbf24' }
+    const livres = horariosDisponiveis.filter(h => !h.ocupado).length
+    return { texto: `${livres} horário${livres !== 1 ? 's' : ''} disponível${livres !== 1 ? 'is' : ''}`, cor: '#4ade80' }
+  }
+
+  const dica = dicaHorario()
 
   return (
     <PageLayout title='📅 Consultas'>
@@ -127,6 +169,7 @@ export default function Consultas() {
         <div className='inner-card'>
           <h3 className='inner-card-title'>{editando ? '✏️ Editar Consulta' : 'Agendar Nova Consulta'}</h3>
           <form onSubmit={handleSubmit} className='inner-form'>
+
             <div className='form-field form-field--full'>
               <label className='form-label'>Paciente <span className='required'>*</span></label>
               <select className='form-select' name='paciente_id' value={form.paciente_id} onChange={handleChange} required>
@@ -134,21 +177,42 @@ export default function Consultas() {
                 {pacientes.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
               </select>
             </div>
+
             <div className='form-field form-field--full'>
               <label className='form-label'>Médico</label>
               <select className='form-select' name='medico_id' value={form.medico_id} onChange={handleChange}>
                 <option value=''>Sem médico definido</option>
-                {medicos.map(m => <option key={m.id} value={m.id}>{m.nome} {m.especialidade ? `— ${m.especialidade}` : ''}</option>)}
+                {medicos.map(m => <option key={m.id} value={m.id}>{m.nome}{m.especialidade ? ` — ${m.especialidade}` : ''}</option>)}
               </select>
             </div>
+
             <div className='form-field'>
               <label className='form-label'>Data <span className='required'>*</span></label>
               <input className='form-input' type='date' name='data_consulta' value={form.data_consulta} onChange={handleChange} required />
             </div>
+
             <div className='form-field'>
-              <label className='form-label'>Horário</label>
-              <input className='form-input' type='time' name='horario' value={form.horario} onChange={handleChange} />
+              <label className='form-label'>
+                Horário
+                <span style={{ marginLeft: '8px', fontSize: '0.72rem', color: dica.cor, fontWeight: 400 }}>{dica.texto}</span>
+              </label>
+
+              {/* Se há horários na agenda: mostra select com disponíveis */}
+              {horariosDisponiveis.length > 0 ? (
+                <select className='form-select' name='horario' value={form.horario} onChange={handleChange}>
+                  <option value=''>Selecione o horário</option>
+                  {horariosDisponiveis.map(({ hora, ocupado }) => (
+                    <option key={hora} value={hora} disabled={ocupado}>
+                      {hora}{ocupado ? ' — Ocupado' : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                // Fallback: input livre se não há agenda configurada
+                <input className='form-input' type='time' name='horario' value={form.horario} onChange={handleChange} />
+              )}
             </div>
+
             <div className='form-field form-field--full'>
               <label className='form-label'>Motivo <span className='required'>*</span></label>
               <input className='form-input' name='motivo' value={form.motivo} onChange={handleChange} placeholder='Motivo da consulta' required />
@@ -157,6 +221,7 @@ export default function Consultas() {
               <label className='form-label'>Observações</label>
               <textarea className='form-textarea' name='observacoes' value={form.observacoes} onChange={handleChange} rows={2} placeholder='Observações adicionais...' />
             </div>
+
             <div className='form-actions'>
               <button type='submit' className='btn btn-success' disabled={salvando}>
                 {salvando ? 'Salvando...' : editando ? '✓ Atualizar' : '✓ Agendar'}
@@ -187,8 +252,7 @@ export default function Consultas() {
                     <div style={{display:'flex',gap:'5px',flexWrap:'wrap'}}>
                       <button className='btn btn-secondary' style={{fontSize:'0.75rem',padding:'4px 8px'}} onClick={() => abrirEditar(c)}>✏️</button>
                       {(proximosStatus[c.status] || []).map(ns => (
-                        <button key={ns} className='btn btn-primary' style={{fontSize:'0.72rem',padding:'4px 8px'}}
-                          onClick={() => alterarStatus(c.id, ns)}>
+                        <button key={ns} className='btn btn-primary' style={{fontSize:'0.72rem',padding:'4px 8px'}} onClick={() => alterarStatus(c.id, ns)}>
                           → {STATUS_CFG[ns]?.label}
                         </button>
                       ))}
