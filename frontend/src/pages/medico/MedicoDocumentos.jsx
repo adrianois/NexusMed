@@ -1,6 +1,6 @@
 /**
  * MedicoDocumentos — Lista todos os documentos gerados pelo médico logado.
- * Usa PageLayout para exibir o menu lateral corretamente.
+ * Permite filtrar, buscar, visualizar dados e gerar/visualizar PDF.
  */
 import { useState, useEffect, useCallback } from 'react'
 import api from '../../api'
@@ -24,6 +24,12 @@ const STATUS_LABEL = {
   cancelado:           { label: 'Cancelado', cor: '#f87171' },
 }
 
+// URL base da API (sem /api se já estiver no baseURL)
+function getPdfUrl(docId) {
+  const base = (import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/\/$/, '')
+  return `${base}/pdf/documento/${docId}`
+}
+
 export default function MedicoDocumentos() {
   const [docs,       setDocs]       = useState([])
   const [carregando, setCarregando] = useState(true)
@@ -31,6 +37,7 @@ export default function MedicoDocumentos() {
   const [filtroTipo, setFiltroTipo] = useState('todos')
   const [busca,      setBusca]      = useState('')
   const [docAberto,  setDocAberto]  = useState(null)
+  const [pdfAberto,  setPdfAberto]  = useState(null) // doc para modal PDF
 
   const carregar = useCallback(async () => {
     setCarregando(true)
@@ -72,7 +79,6 @@ export default function MedicoDocumentos() {
         <button style={pg.btnAtualizar} onClick={carregar}>🔄 Atualizar</button>
       </div>
 
-      {/* Conteúdo */}
       {carregando ? (
         <div style={pg.centro}>⏳ Carregando documentos...</div>
       ) : erro ? (
@@ -85,20 +91,31 @@ export default function MedicoDocumentos() {
       ) : (
         <div style={pg.lista}>
           {docsFiltrados.map(doc => (
-            <CardDoc key={doc.id} doc={doc} onVer={() => setDocAberto(doc)} />
+            <CardDoc
+              key={doc.id}
+              doc={doc}
+              onVer={() => setDocAberto(doc)}
+              onVerPdf={() => setPdfAberto(doc)}
+            />
           ))}
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modal dados */}
       {docAberto && (
         <ModalVisualizarDoc doc={docAberto} onFechar={() => setDocAberto(null)} />
+      )}
+
+      {/* Modal PDF */}
+      {pdfAberto && (
+        <ModalPdf doc={pdfAberto} onFechar={() => setPdfAberto(null)} />
       )}
     </PageLayout>
   )
 }
 
-function CardDoc({ doc, onVer }) {
+// ── Card ──────────────────────────────────────────────────────────────────────
+function CardDoc({ doc, onVer, onVerPdf }) {
   const meta   = LABELS[doc.tipo] || { icon: '📄', label: doc.tipo, cor: '#64748b' }
   const status = STATUS_LABEL[doc.status] || { label: doc.status, cor: '#64748b' }
   const data   = doc.created_at ? new Date(doc.created_at).toLocaleDateString('pt-BR') : '—'
@@ -120,19 +137,57 @@ function CardDoc({ doc, onVer }) {
           <div style={{ fontSize: '0.7rem', color: '#475569', marginTop: '4px' }}>{data}</div>
         </div>
       </div>
+
       <div style={pg.cardAcoes}>
         <button style={pg.btnVer} onClick={onVer}>👁️ Ver dados</button>
+        <button style={pg.btnPdf} onClick={onVerPdf}>📄 Ver PDF</button>
         {doc.status === 'pendente_assinatura' && (
           <BotaoAssinar tipoDocumento={doc.tipo} documentoId={doc.id} />
-        )}
-        {doc.arquivo_pdf && (
-          <a href={doc.arquivo_pdf} target='_blank' rel='noreferrer' style={pg.btnPdf}>⬇️ PDF</a>
         )}
       </div>
     </div>
   )
 }
 
+// ── Modal PDF ────────────────────────────────────────────────────────────────
+function ModalPdf({ doc, onFechar }) {
+  const meta   = LABELS[doc.tipo] || { icon: '📄', label: doc.tipo, cor: '#64748b' }
+  const pdfUrl = getPdfUrl(doc.id)
+  // Adiciona token JWT no header via URL não é possível com <iframe>,
+  // então abrimos com fetch + blob ou diretamente com token na query string
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token') || ''
+  const pdfUrlAuth = `${pdfUrl}?token=${token}`
+
+  return (
+    <div style={modal.overlay} onClick={onFechar}>
+      <div style={modal.boxPdf} onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div style={modal.header}>
+          <span style={{ fontSize: '1.2rem' }}>{meta.icon}</span>
+          <span style={{ fontWeight: 700, color: meta.cor, flex: 1 }}>{meta.label}</span>
+          <a
+            href={pdfUrlAuth}
+            target='_blank'
+            rel='noreferrer'
+            style={modal.btnDownload}
+          >
+            ⬇️ Baixar PDF
+          </a>
+          <button style={modal.fechar} onClick={onFechar}>✕</button>
+        </div>
+
+        {/* Iframe PDF */}
+        <iframe
+          src={pdfUrlAuth}
+          style={modal.iframe}
+          title={`PDF — ${meta.label}`}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ── Modal dados ───────────────────────────────────────────────────────────────
 function ModalVisualizarDoc({ doc, onFechar }) {
   const meta = LABELS[doc.tipo] || { icon: '📄', label: doc.tipo, cor: '#64748b' }
 
@@ -176,6 +231,7 @@ function InfoRow({ label, valor }) {
   )
 }
 
+// ── Estilos ───────────────────────────────────────────────────────────────────
 const pg = {
   filtros:     { display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' },
   input:       { flex: 1, minWidth: '200px', padding: '9px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '8px', color: '#e2e8f0', fontSize: '0.86rem', outline: 'none' },
@@ -183,18 +239,21 @@ const pg = {
   lista:       { display: 'flex', flexDirection: 'column', gap: '12px' },
   card:        { background: 'rgba(15,23,42,0.8)', border: '1px solid', borderRadius: '12px', padding: '16px 18px' },
   cardTop:     { display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '12px' },
-  cardAcoes:   { display: 'flex', gap: '8px', flexWrap: 'wrap' },
+  cardAcoes:   { display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' },
   btnVer:      { padding: '6px 14px', background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '6px', color: '#60a5fa', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' },
-  btnPdf:      { padding: '6px 14px', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '6px', color: '#4ade80', fontSize: '0.8rem', textDecoration: 'none', fontWeight: 600 },
+  btnPdf:      { padding: '6px 14px', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: '6px', color: '#fbbf24', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' },
   btnAtualizar:{ padding: '8px 16px', background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '8px', color: '#60a5fa', fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit' },
   centro:      { textAlign: 'center', padding: '60px 20px', color: '#475569' },
 }
 
 const modal = {
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' },
-  box:     { background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', width: '100%', maxWidth: '560px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-  header:  { display: 'flex', alignItems: 'center', gap: '10px', padding: '18px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)' },
-  fechar:  { marginLeft: 'auto', background: 'none', border: 'none', color: '#64748b', fontSize: '1rem', cursor: 'pointer' },
-  corpo:   { padding: '18px 20px', overflowY: 'auto', flex: 1 },
-  secLabel:{ fontSize: '0.7rem', fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '16px 0 8px' },
+  overlay:    { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' },
+  box:        { background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', width: '100%', maxWidth: '560px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+  boxPdf:     { background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', width: '100%', maxWidth: '860px', height: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+  header:     { display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)' },
+  fechar:     { marginLeft: '8px', background: 'none', border: 'none', color: '#64748b', fontSize: '1rem', cursor: 'pointer' },
+  btnDownload:{ padding: '5px 12px', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '6px', color: '#4ade80', fontSize: '0.78rem', textDecoration: 'none', fontWeight: 600, whiteSpace: 'nowrap' },
+  iframe:     { flex: 1, border: 'none', width: '100%', background: '#fff' },
+  corpo:      { padding: '18px 20px', overflowY: 'auto', flex: 1 },
+  secLabel:   { fontSize: '0.7rem', fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '16px 0 8px' },
 }
