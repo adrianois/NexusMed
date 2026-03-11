@@ -1,7 +1,5 @@
 /**
  * /medico — rotas exclusivas do perfil 'medico'
- * Dashboard, agenda própria, triagem dos pacientes do médico,
- * atendimentos (prontuários vinculados ao médico)
  */
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
@@ -12,7 +10,6 @@ import { registrarLog } from '../lib/log.js'
 const router = Router()
 router.use(autenticar)
 
-// Middleware: garante que só médico (ou admin/gestor) acessa
 router.use((req, res, next) => {
   const permitidos = ['medico', 'gestor', 'admin', 'normal']
   if (!permitidos.includes(req.usuario.perfil))
@@ -20,7 +17,6 @@ router.use((req, res, next) => {
   next()
 })
 
-// ─── helper: resolve medico_id do usuário logado ────────────────────────────
 async function getMedicoId(req) {
   if (req.usuario.perfil === 'medico') {
     const { data } = await supabase
@@ -30,7 +26,6 @@ async function getMedicoId(req) {
       .single()
     return data?.id || null
   }
-  // admin/gestor/normal pode passar ?medico_id=X
   return req.query.medico_id || null
 }
 
@@ -39,19 +34,15 @@ router.get('/dashboard', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
     const hoje = new Date().toISOString().split('T')[0]
-
     let qBase = supabase.from('consultas').select('id, status, data_consulta')
     if (medico_id) qBase = qBase.eq('medico_id', medico_id)
     if (req.usuario.clinica_id) qBase = qBase.eq('clinica_id', req.usuario.clinica_id)
-
     const { data: todas } = await qBase
     const total_hoje   = (todas || []).filter(c => c.data_consulta === hoje).length
     const total_mes    = (todas || []).filter(c => c.data_consulta?.startsWith(hoje.slice(0,7))).length
     const aguardando   = (todas || []).filter(c => c.data_consulta === hoje && ['confirmada','triado'].includes(c.status)).length
     const em_andamento = (todas || []).filter(c => c.data_consulta === hoje && c.status === 'em_atendimento').length
     const finalizados  = (todas || []).filter(c => c.data_consulta === hoje && c.status === 'liberada').length
-
-    // Próximas consultas (hoje, ordenadas por horário)
     let qProx = supabase.from('consultas')
       .select('id, horario, status, motivo, paciente_id')
       .eq('data_consulta', hoje)
@@ -61,12 +52,11 @@ router.get('/dashboard', async (req, res) => {
     if (medico_id) qProx = qProx.eq('medico_id', medico_id)
     if (req.usuario.clinica_id) qProx = qProx.eq('clinica_id', req.usuario.clinica_id)
     const { data: proximas } = await qProx
-
     res.json({ total_hoje, total_mes, aguardando, em_andamento, finalizados, proximas: proximas || [] })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ─── Agenda (consultas do médico) ────────────────────────────────────────────
+// ─── Agenda ────────────────────────────────────────────────────────────────────
 router.get('/agenda', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
@@ -88,7 +78,7 @@ router.get('/agenda', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ─── Fila de triagem (pacientes triados aguardando o médico) ─────────────────
+// ─── Triagem ────────────────────────────────────────────────────────────────────
 router.get('/triagem', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
@@ -106,7 +96,7 @@ router.get('/triagem', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ─── Iniciar atendimento ──────────────────────────────────────────────────────
+// ─── Iniciar atendimento ─────────────────────────────────────────────────────
 router.post('/atendimento/:consulta_id/iniciar', async (req, res) => {
   try {
     const { error } = await supabase.from('consultas')
@@ -117,36 +107,27 @@ router.post('/atendimento/:consulta_id/iniciar', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ─── Salvar atendimento (prontuário) ─────────────────────────────────────────
+// ─── Finalizar atendimento (prontuário) ────────────────────────────────────────
 router.post('/atendimento/:consulta_id/finalizar', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
-    const {
-      anamnese, exame_fisico, diagnostico, cid10,
-      conduta, prescricao, retorno_dias, observacoes
-    } = req.body
-
+    const { anamnese, exame_fisico, diagnostico, cid10, conduta, prescricao, retorno_dias, observacoes } = req.body
     const { data: consulta } = await supabase
       .from('consultas').select('paciente_id, clinica_id').eq('id', req.params.consulta_id).single()
     if (!consulta) return res.status(404).json({ error: 'Consulta não encontrada.' })
-
-    // Upsert no prontuário
     const { data: pront, error: ep } = await supabase.from('prontuarios')
       .upsert([{
-        consulta_id:  req.params.consulta_id,
-        paciente_id:  consulta.paciente_id,
+        consulta_id: req.params.consulta_id,
+        paciente_id: consulta.paciente_id,
         medico_id,
-        clinica_id:   consulta.clinica_id || req.usuario.clinica_id,
+        clinica_id:  consulta.clinica_id || req.usuario.clinica_id,
         anamnese, exame_fisico, diagnostico, cid10,
         conduta, prescricao, retorno_dias, observacoes,
         data_atendimento: new Date().toISOString().split('T')[0],
       }], { onConflict: 'consulta_id' })
       .select()
     if (ep) return res.status(400).json({ error: ep.message })
-
-    // Atualiza status da consulta para liberada
     await supabase.from('consultas').update({ status: 'liberada' }).eq('id', req.params.consulta_id)
-
     await registrarLog({
       usuario: req.usuario, acao: 'criar', tabela: 'prontuarios',
       registro_id: pront[0]?.id,
@@ -156,7 +137,7 @@ router.post('/atendimento/:consulta_id/finalizar', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ─── Buscar atendimento existente ─────────────────────────────────────────────
+// ─── Buscar prontuário existente ───────────────────────────────────────────────
 router.get('/atendimento/:consulta_id', async (req, res) => {
   try {
     const { data, error } = await supabase.from('prontuarios')
@@ -166,7 +147,7 @@ router.get('/atendimento/:consulta_id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ─── Histórico de atendimentos ────────────────────────────────────────────────
+// ─── Histórico ──────────────────────────────────────────────────────────────────────
 router.get('/historico', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
@@ -192,24 +173,23 @@ router.post('/criar-usuario', async (req, res) => {
     if (!medico) return res.status(404).json({ error: 'Médico não encontrado.' })
     if (medico.usuario_id) return res.status(400).json({ error: 'Médico já possui usuário vinculado.' })
 
-    // Verifica e-mail duplicado
     const { data: emailEx } = await supabase.from('usuarios').select('id').eq('email', email).limit(1)
     if (emailEx?.length > 0) return res.status(409).json({ error: 'E-mail já cadastrado.' })
 
     const senha_hash = await bcrypt.hash(senha, 10)
 
-    // Usa os campos reais do schema: senha_hash, status, perfil
+    // ✔ status='pendente' para aparecer na tela Aprovar Usuários do gestor
+    // ✔ clinica_id herdado do médico para filtro do gestor funcionar
     const { data: usuario, error: eu } = await supabase.from('usuarios').insert([{
       nome:       medico.nome,
       email,
       senha_hash,
       perfil:     'medico',
-      clinica_id: medico.clinica_id,
-      status:     'ativo',   // status = 'ativo' | 'pendente' | 'inativo'
+      clinica_id: medico.clinica_id,  // ← ESSENCIAL: gestor filtra por clinica_id
+      status:     'pendente',          // ← CORRIGIDO: aparece na tela de aprovacao
     }]).select().single()
     if (eu) return res.status(400).json({ error: eu.message })
 
-    // Vincula usuário ao médico
     await supabase.from('medicos').update({ usuario_id: usuario.id, email }).eq('id', medico_id)
 
     await registrarLog({
