@@ -29,15 +29,16 @@ export default function PageLayout({ children, title }) {
     }
   }, [user])
 
-  // ── Menus por perfil ─────────────────────────────────────────────
+  // ── Menus por perfil ────────────────────────────────────────────────
 
-  // Médico — histórico (prontuários) só aqui
+  // Médico
   const menuMedico = [
-    { to: '/medico',           icon: '🏥', label: 'Painel'       },
-    { to: '/medico/agenda',    icon: '📅', label: 'Agenda'       },
-    { to: '/medico/triagem',   icon: '🩺', label: 'Fila Triagem' },
-    { to: '/medico/historico', icon: '📁', label: 'Histórico'    },
-    { to: '/minha-senha',      icon: '🖐', label: 'Minha Senha'  },
+    { to: '/medico',              icon: '🏥', label: 'Painel'       },
+    { to: '/medico/agenda',       icon: '📅', label: 'Agenda'       },
+    { to: '/medico/triagem',      icon: '🩺', label: 'Fila Triagem' },
+    { to: '/medico/historico',    icon: '📁', label: 'Histórico'    },
+    { to: '/medico/documentos',   icon: '📑', label: 'Documentos'   },
+    { to: '/minha-senha',         icon: '🔐', label: 'Minha Senha'  },
   ]
 
   // Admin — sem prontuários
@@ -50,7 +51,7 @@ export default function PageLayout({ children, title }) {
     { to: '/consultas',      icon: '📅', label: 'Consultas'    },
     { to: '/triagem',        icon: '🩺', label: 'Triagem'      },
     { to: '/logs',           icon: '📝', label: 'Logs'         },
-    { to: '/minha-senha',    icon: '🖐', label: 'Minha Senha'  },
+    { to: '/minha-senha',    icon: '🔐', label: 'Minha Senha'  },
   ]
 
   // Gestor — sem prontuários
@@ -62,16 +63,16 @@ export default function PageLayout({ children, title }) {
     { to: '/medicos',             icon: '👨‍⚕️', label: 'Médicos'         },
     { to: '/pacientes',           icon: '👥', label: 'Pacientes'        },
     { to: '/consultas',           icon: '📅', label: 'Consultas'        },
-    { to: '/minha-senha',         icon: '🖐', label: 'Minha Senha'      },
+    { to: '/minha-senha',         icon: '🔐', label: 'Minha Senha'      },
   ]
 
   // Normal (recepção/atendente) — sem prontuários
   const menuNormalBase = [
-    { to: '/dashboard', icon: '🏠', label: 'Início'     },
-    { to: '/medicos',   icon: '👨‍⚕️', label: 'Médicos'   },
-    { to: '/pacientes', icon: '👥', label: 'Pacientes' },
-    { to: '/consultas', icon: '📅', label: 'Consultas' },
-    { to: '/minha-senha', icon: '🖐', label: 'Minha Senha' },
+    { to: '/dashboard',   icon: '🏠', label: 'Início'     },
+    { to: '/medicos',     icon: '👨‍⚕️', label: 'Médicos'   },
+    { to: '/pacientes',   icon: '👥', label: 'Pacientes' },
+    { to: '/consultas',   icon: '📅', label: 'Consultas' },
+    { to: '/minha-senha', icon: '🔐', label: 'Minha Senha' },
   ]
 
   const perfil = user?.perfil
