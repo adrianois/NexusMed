@@ -16,6 +16,7 @@ import clinicasRoutes    from './routes/clinicas.js'
 import logsRoutes        from './routes/logs.js'
 import usuariosRoutes    from './routes/usuarios.js'
 import triagemRoutes     from './routes/triagem.js'
+import assinaturaRoutes  from './routes/assinatura.js'
 
 const app  = express()
 const port = process.env.PORT || 4000
@@ -62,5 +63,6 @@ app.use('/clinicas',    clinicasRoutes)
 app.use('/logs',        logsRoutes)
 app.use('/usuarios',    usuariosRoutes)
 app.use('/triagem',     triagemRoutes)
+app.use('/assinatura',  assinaturaRoutes)
 
 app.listen(port, () => console.log(`🚀 Servidor rodando na porta ${port}`))
