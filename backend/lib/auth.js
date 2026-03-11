@@ -26,8 +26,15 @@ export function apenasGestor(req, res, next) {
 
 export function gerarToken(usuario) {
   return jwt.sign(
-    { usuario_id: usuario.id, nome: usuario.nome, email: usuario.email,
-      perfil: usuario.perfil, clinica_id: usuario.clinica_id, status: usuario.status },
+    {
+      id:         usuario.id,       // ← campo padrao usado em todo o backend
+      usuario_id: usuario.id,       // ← mantido por retrocompatibilidade
+      nome:       usuario.nome,
+      email:      usuario.email,
+      perfil:     usuario.perfil,
+      clinica_id: usuario.clinica_id,
+      status:     usuario.status,
+    },
     jwtSecret,
     { expiresIn: '8h' }
   )

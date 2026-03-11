@@ -19,12 +19,14 @@ router.use((req, res, next) => {
 
 async function getMedicoId(req) {
   if (req.usuario.perfil === 'medico') {
+    // JWT pode ter 'id' (novo) ou 'usuario_id' (legado) — suporta ambos
+    const uid = req.usuario.id || req.usuario.usuario_id
     const { data, error } = await supabase
       .from('medicos')
       .select('id')
-      .eq('usuario_id', req.usuario.id)
+      .eq('usuario_id', uid)
       .maybeSingle()
-    if (error) console.error('[getMedicoId] Supabase error:', error.message, '| usuario_id:', req.usuario.id)
+    if (error) console.error('[getMedicoId] Supabase error:', error.message, '| uid:', uid)
     return data?.id || null
   }
   return req.query.medico_id || null
@@ -265,10 +267,7 @@ router.post('/documento', async (req, res) => {
 
     const medico_id = await getMedicoId(req)
     if (!medico_id)
-      return res.status(400).json({
-        error: 'Médico não encontrado para o usuário autenticado.',
-        debug: { usuario_id: req.usuario.id, perfil: req.usuario.perfil },
-      })
+      return res.status(400).json({ error: 'Médico não encontrado para o usuário autenticado.' })
 
     const { data, error } = await supabase
       .from('documentos_medicos')
