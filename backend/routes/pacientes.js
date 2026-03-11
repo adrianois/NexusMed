@@ -6,12 +6,12 @@ import { registrarLog } from '../lib/log.js'
 const router = Router()
 router.use(autenticar)
 
-// Apenas campos que existem na tabela pacientes
+// Apenas colunas que existem na tabela pacientes
 function sanitizar(body) {
   const campos = [
     'nome', 'cpf', 'data_nascimento', 'telefone', 'email',
     'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'cidade', 'estado',
-    'plano_saude', 'observacoes'
+    'plano_saude', 'numero_carteirinha', 'observacoes'
   ]
   const obj = {}
   for (const c of campos) {
