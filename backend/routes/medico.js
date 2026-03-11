@@ -254,7 +254,6 @@ router.post('/criar-usuario', async (req, res) => {
 router.post('/documento', async (req, res) => {
   try {
     const { tipo, consulta_id, dados } = req.body
-    const medicoId = req.usuario.id
 
     if (!tipo || !TIPOS_DOCUMENTO.includes(tipo))
       return res.status(400).json({ error: `Tipo inválido. Permitidos: ${TIPOS_DOCUMENTO.join(', ')}` })
@@ -263,13 +262,18 @@ router.post('/documento', async (req, res) => {
     if (!dados || typeof dados !== 'object')
       return res.status(400).json({ error: 'Dados do documento são obrigatórios.' })
 
+    // Usa getMedicoId para resolver corretamente medicos.id a partir do usuario logado
+    const medico_id = await getMedicoId(req)
+    if (!medico_id)
+      return res.status(400).json({ error: 'Médico não encontrado para o usuário autenticado.' })
+
     const { data, error } = await supabase
       .from('documentos_medicos')
       .insert([{
         id:          crypto.randomUUID(),
         tipo,
         consulta_id,
-        medico_id:   medicoId,
+        medico_id,
         dados,
         status:      'pendente_assinatura',
       }])
@@ -316,7 +320,8 @@ router.get('/documento/:id', async (req, res) => {
       .maybeSingle()
     if (error) return res.status(500).json({ error: error.message })
     if (!data)  return res.status(404).json({ error: 'Documento não encontrado.' })
-    if (data.medico_id !== req.usuario.id)
+    const medico_id = await getMedicoId(req)
+    if (data.medico_id !== medico_id)
       return res.status(403).json({ error: 'Acesso negado.' })
     res.json(data)
   } catch (e) { res.status(500).json({ error: e.message }) }
