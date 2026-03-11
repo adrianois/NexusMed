@@ -1,9 +1,10 @@
 /**
  * MedicoDocumentos — Lista todos os documentos gerados pelo médico logado.
- * Permite filtrar por tipo, buscar por paciente e visualizar os dados do documento.
+ * Usa PageLayout para exibir o menu lateral corretamente.
  */
 import { useState, useEffect, useCallback } from 'react'
 import api from '../../api'
+import PageLayout from '../../components/PageLayout'
 import BotaoAssinar from '../../components/BotaoAssinar'
 
 const LABELS = {
@@ -29,7 +30,7 @@ export default function MedicoDocumentos() {
   const [erro,       setErro]       = useState(null)
   const [filtroTipo, setFiltroTipo] = useState('todos')
   const [busca,      setBusca]      = useState('')
-  const [docAberto,  setDocAberto]  = useState(null) // doc selecionado p/ visualizar
+  const [docAberto,  setDocAberto]  = useState(null)
 
   const carregar = useCallback(async () => {
     setCarregando(true)
@@ -47,22 +48,13 @@ export default function MedicoDocumentos() {
   useEffect(() => { carregar() }, [carregar])
 
   const docsFiltrados = docs.filter(d => {
-    const tipoOk   = filtroTipo === 'todos' || d.tipo === filtroTipo
-    const buscaOk  = !busca || d.paciente_nome?.toLowerCase().includes(busca.toLowerCase())
+    const tipoOk  = filtroTipo === 'todos' || d.tipo === filtroTipo
+    const buscaOk = !busca || d.paciente_nome?.toLowerCase().includes(busca.toLowerCase())
     return tipoOk && buscaOk
   })
 
   return (
-    <div style={pg.wrap}>
-      {/* Cabeçalho */}
-      <div style={pg.header}>
-        <div>
-          <h1 style={pg.titulo}>📑 Meus Documentos</h1>
-          <p style={pg.sub}>Documentos médicos gerados e seu status de assinatura</p>
-        </div>
-        <button style={pg.btnAtualizar} onClick={carregar}>🔄 Atualizar</button>
-      </div>
-
+    <PageLayout title='📑 Meus Documentos'>
       {/* Filtros */}
       <div style={pg.filtros}>
         <input
@@ -77,6 +69,7 @@ export default function MedicoDocumentos() {
             <option key={k} value={k}>{v.icon} {v.label}</option>
           ))}
         </select>
+        <button style={pg.btnAtualizar} onClick={carregar}>🔄 Atualizar</button>
       </div>
 
       {/* Conteúdo */}
@@ -97,17 +90,16 @@ export default function MedicoDocumentos() {
         </div>
       )}
 
-      {/* Modal de visualização */}
+      {/* Modal */}
       {docAberto && (
         <ModalVisualizarDoc doc={docAberto} onFechar={() => setDocAberto(null)} />
       )}
-    </div>
+    </PageLayout>
   )
 }
 
-// ── Card individual ───────────────────────────────────────────────────────────
 function CardDoc({ doc, onVer }) {
-  const meta   = LABELS[doc.tipo]   || { icon: '📄', label: doc.tipo, cor: '#64748b' }
+  const meta   = LABELS[doc.tipo] || { icon: '📄', label: doc.tipo, cor: '#64748b' }
   const status = STATUS_LABEL[doc.status] || { label: doc.status, cor: '#64748b' }
   const data   = doc.created_at ? new Date(doc.created_at).toLocaleDateString('pt-BR') : '—'
 
@@ -128,7 +120,6 @@ function CardDoc({ doc, onVer }) {
           <div style={{ fontSize: '0.7rem', color: '#475569', marginTop: '4px' }}>{data}</div>
         </div>
       </div>
-
       <div style={pg.cardAcoes}>
         <button style={pg.btnVer} onClick={onVer}>👁️ Ver dados</button>
         {doc.status === 'pendente_assinatura' && (
@@ -142,7 +133,6 @@ function CardDoc({ doc, onVer }) {
   )
 }
 
-// ── Modal de visualização dos dados ──────────────────────────────────────────
 function ModalVisualizarDoc({ doc, onFechar }) {
   const meta = LABELS[doc.tipo] || { icon: '📄', label: doc.tipo, cor: '#64748b' }
 
@@ -154,14 +144,10 @@ function ModalVisualizarDoc({ doc, onFechar }) {
           <span style={{ fontWeight: 700, color: meta.cor }}>{meta.label}</span>
           <button style={modal.fechar} onClick={onFechar}>✕</button>
         </div>
-
         <div style={modal.corpo}>
-          {doc.paciente_nome && (
-            <InfoRow label='Paciente' valor={doc.paciente_nome} />
-          )}
+          {doc.paciente_nome && <InfoRow label='Paciente' valor={doc.paciente_nome} />}
           <InfoRow label='Status' valor={STATUS_LABEL[doc.status]?.label || doc.status} />
           <InfoRow label='Data'   valor={doc.created_at ? new Date(doc.created_at).toLocaleString('pt-BR') : '—'} />
-
           {doc.dados && typeof doc.dados === 'object' && (
             <>
               <div style={modal.secLabel}>📋 Dados do Documento</div>
@@ -171,7 +157,6 @@ function ModalVisualizarDoc({ doc, onFechar }) {
             </>
           )}
         </div>
-
         {doc.status === 'pendente_assinatura' && (
           <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'center' }}>
             <BotaoAssinar tipoDocumento={doc.tipo} documentoId={doc.id} />
@@ -191,12 +176,7 @@ function InfoRow({ label, valor }) {
   )
 }
 
-// ── Estilos ───────────────────────────────────────────────────────────────────
 const pg = {
-  wrap:        { padding: '28px 32px', maxWidth: '900px', margin: '0 auto' },
-  header:      { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' },
-  titulo:      { fontSize: '1.4rem', fontWeight: 800, color: '#f1f5f9', margin: 0 },
-  sub:         { fontSize: '0.82rem', color: '#475569', marginTop: '4px' },
   filtros:     { display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' },
   input:       { flex: 1, minWidth: '200px', padding: '9px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '8px', color: '#e2e8f0', fontSize: '0.86rem', outline: 'none' },
   select:      { padding: '9px 12px', background: '#0f172a', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '8px', color: '#e2e8f0', fontSize: '0.84rem', cursor: 'pointer' },

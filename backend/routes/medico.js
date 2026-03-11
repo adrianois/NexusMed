@@ -253,31 +253,57 @@ router.post('/criar-usuario', async (req, res) => {
 // ════════════════════════════════════════════════════════════════════════════
 
 // ── GET /medico/documentos — Lista todos os documentos do médico logado ───────
+// Busca sem join encadeado (sem FK explícita no schema do Supabase):
+// 1) busca documentos_medicos pelo medico_id
+// 2) busca consultas pelos consulta_ids encontrados
+// 3) busca pacientes pelos paciente_ids encontrados
+// 4) monta paciente_nome no resultado
 router.get('/documentos', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
     if (!medico_id)
       return res.status(400).json({ error: 'Médico não encontrado para o usuário autenticado.' })
 
-    // Busca documentos com join em consultas → pacientes para trazer nome do paciente
-    const { data, error } = await supabase
+    // 1) Documentos do médico
+    const { data: docs, error: e1 } = await supabase
       .from('documentos_medicos')
-      .select(`
-        id, tipo, status, dados, arquivo_pdf, created_at,
-        consultas ( paciente_id, pacientes ( nome ) )
-      `)
+      .select('id, tipo, status, dados, arquivo_pdf, created_at, consulta_id')
       .eq('medico_id', medico_id)
       .order('created_at', { ascending: false })
       .limit(100)
+    if (e1) return res.status(500).json({ error: e1.message })
+    if (!docs || docs.length === 0) return res.json([])
 
-    if (error) return res.status(500).json({ error: error.message })
+    // 2) Busca consultas para pegar paciente_id
+    const consultaIds = [...new Set(docs.map(d => d.consulta_id).filter(Boolean))]
+    let consultaMap = {}
+    if (consultaIds.length > 0) {
+      const { data: consultas } = await supabase
+        .from('consultas')
+        .select('id, paciente_id')
+        .in('id', consultaIds)
+      ;(consultas || []).forEach(c => { consultaMap[c.id] = c.paciente_id })
+    }
 
-    // Formata adicionando paciente_nome no nível raiz
-    const resultado = (data || []).map(d => ({
-      ...d,
-      paciente_nome: d.consultas?.pacientes?.nome || null,
-      consultas: undefined,
-    }))
+    // 3) Busca pacientes
+    const pacienteIds = [...new Set(Object.values(consultaMap).filter(Boolean))]
+    let pacienteMap = {}
+    if (pacienteIds.length > 0) {
+      const { data: pacientes } = await supabase
+        .from('pacientes')
+        .select('id, nome')
+        .in('id', pacienteIds)
+      ;(pacientes || []).forEach(p => { pacienteMap[p.id] = p.nome })
+    }
+
+    // 4) Monta resultado
+    const resultado = docs.map(d => {
+      const paciente_id = consultaMap[d.consulta_id]
+      return {
+        ...d,
+        paciente_nome: pacienteMap[paciente_id] || null,
+      }
+    })
 
     res.json(resultado)
   } catch (e) { res.status(500).json({ error: e.message }) }
@@ -287,49 +313,30 @@ router.get('/documentos', async (req, res) => {
 router.post('/documento', async (req, res) => {
   try {
     const { tipo, consulta_id, dados } = req.body
-
     if (!tipo || !TIPOS_DOCUMENTO.includes(tipo))
       return res.status(400).json({ error: `Tipo inválido. Permitidos: ${TIPOS_DOCUMENTO.join(', ')}` })
     if (!consulta_id)
       return res.status(400).json({ error: 'consulta_id é obrigatório.' })
     if (!dados || typeof dados !== 'object')
       return res.status(400).json({ error: 'Dados do documento são obrigatórios.' })
-
     const medico_id = await getMedicoId(req)
     if (!medico_id)
       return res.status(400).json({ error: 'Médico não encontrado para o usuário autenticado.' })
-
     const { data, error } = await supabase
       .from('documentos_medicos')
-      .insert([{
-        id:          crypto.randomUUID(),
-        tipo,
-        consulta_id,
-        medico_id,
-        dados,
-        status:      'pendente_assinatura',
-      }])
+      .insert([{ id: crypto.randomUUID(), tipo, consulta_id, medico_id, dados, status: 'pendente_assinatura' }])
       .select()
       .single()
-
     if (error) return res.status(400).json({ error: error.message })
-
     await registrarLog({
       usuario: req.usuario, acao: 'criar', tabela: 'documentos_medicos',
-      registro_id: data.id,
-      detalhes: { tipo, consulta_id },
+      registro_id: data.id, detalhes: { tipo, consulta_id },
     })
-
-    res.status(201).json({
-      id:          data.id,
-      tipo:        data.tipo,
-      status:      data.status,
-      arquivo_pdf: data.arquivo_pdf || null,
-    })
+    res.status(201).json({ id: data.id, tipo: data.tipo, status: data.status, arquivo_pdf: data.arquivo_pdf || null })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── GET /medico/documento/consulta/:consultaId — Lista por consulta ───────────
+// ── GET /medico/documento/consulta/:consultaId ───────────────────────────────────
 router.get('/documento/consulta/:consultaId', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -342,19 +349,15 @@ router.get('/documento/consulta/:consultaId', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── GET /medico/documento/:id — Detalhes ──────────────────────────────────────
+// ── GET /medico/documento/:id ─────────────────────────────────────────────────────
 router.get('/documento/:id', async (req, res) => {
   try {
     const { data, error } = await supabase
-      .from('documentos_medicos')
-      .select('*')
-      .eq('id', req.params.id)
-      .maybeSingle()
+      .from('documentos_medicos').select('*').eq('id', req.params.id).maybeSingle()
     if (error) return res.status(500).json({ error: error.message })
     if (!data)  return res.status(404).json({ error: 'Documento não encontrado.' })
     const medico_id = await getMedicoId(req)
-    if (data.medico_id !== medico_id)
-      return res.status(403).json({ error: 'Acesso negado.' })
+    if (data.medico_id !== medico_id) return res.status(403).json({ error: 'Acesso negado.' })
     res.json(data)
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
