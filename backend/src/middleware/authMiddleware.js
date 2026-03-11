@@ -1,17 +1,22 @@
-import jwt from "jsonwebtoken"
+import jwt from 'jsonwebtoken';
 
-export const verificarToken = (req, res, next) => {
-  const token = req.headers["authorization"]
+/**
+ * Middleware de verificação do token JWT.
+ * Adiciona req.usuario com os dados do médico autenticado.
+ */
+export function verificarToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer <token>
 
   if (!token) {
-    return res.status(403).json({ message: "Token não fornecido" })
+    return res.status(401).json({ erro: 'Token de autenticação não fornecido.' });
   }
 
   try {
-    const decoded = jwt.verify(token.replace("Bearer ", ""), process.env.JWT_SECRET)
-    req.userId = decoded.id
-    next()
-  } catch (err) {
-    return res.status(401).json({ message: "Token inválido" })
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.usuario = payload;
+    return next();
+  } catch (error) {
+    return res.status(401).json({ erro: 'Token inválido ou expirado.' });
   }
 }
