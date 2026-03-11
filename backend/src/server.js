@@ -3,6 +3,7 @@ import dotenv from "dotenv"
 import cors from "cors"
 import sequelize from "./config/database.js"
 import authRoutes from "./routes/authRoutes.js"
+import assinaturaRoutes from "./routes/assinaturaRoutes.js"
 
 dotenv.config()
 const app = express()
@@ -13,6 +14,7 @@ app.use(express.json())
 
 // Rotas
 app.use("/auth", authRoutes)
+app.use("/assinatura", assinaturaRoutes)
 
 // Teste de conexão com banco
 sequelize.authenticate()
