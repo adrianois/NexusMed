@@ -29,7 +29,6 @@ async function getMedicoId(req) {
   return req.query.medico_id || null
 }
 
-// Gera descricao resumida a partir dos campos clínicos (satisfaz NOT NULL)
 function gerarDescricao({ diagnostico, anamnese, conduta }) {
   const partes = []
   if (diagnostico) partes.push(`Diagnóstico: ${diagnostico}`)
@@ -38,7 +37,7 @@ function gerarDescricao({ diagnostico, anamnese, conduta }) {
   return partes.length > 0 ? partes.join(' | ') : 'Atendimento médico registrado.'
 }
 
-// ─── Dashboard ──────────────────────────────────────────────────────────────────
+// ── Dashboard ─────────────────────────────────────────────────────────────────
 router.get('/dashboard', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
@@ -65,7 +64,7 @@ router.get('/dashboard', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ─── Agenda ───────────────────────────────────────────────────────────────────────
+// ── Agenda ───────────────────────────────────────────────────────────────────────
 router.get('/agenda', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
@@ -87,7 +86,30 @@ router.get('/agenda', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ─── Triagem ────────────────────────────────────────────────────────────────────────
+// ── Buscar consulta por ID (uso interno do módulo médico) ───────────────────────
+router.get('/consulta/:id', async (req, res) => {
+  try {
+    const medico_id = await getMedicoId(req)
+    let q = supabase.from('consultas').select('*').eq('id', req.params.id)
+    if (medico_id) q = q.eq('medico_id', medico_id)
+    const { data, error } = await q.maybeSingle()
+    if (error) return res.status(500).json({ error: error.message })
+    if (!data)  return res.status(404).json({ error: 'Consulta não encontrada.' })
+    res.json(data)
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── Buscar paciente por ID (uso interno do módulo médico) ──────────────────────
+router.get('/paciente/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('pacientes').select('*').eq('id', req.params.id).maybeSingle()
+    if (error) return res.status(500).json({ error: error.message })
+    res.json(data || null)
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── Triagem ────────────────────────────────────────────────────────────────────────
 router.get('/triagem', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
@@ -105,7 +127,7 @@ router.get('/triagem', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ─── Iniciar atendimento ────────────────────────────────────────────────────────────
+// ── Iniciar atendimento ────────────────────────────────────────────────────────────
 router.post('/atendimento/:consulta_id/iniciar', async (req, res) => {
   try {
     const { error } = await supabase.from('consultas')
@@ -116,7 +138,7 @@ router.post('/atendimento/:consulta_id/iniciar', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ─── Finalizar atendimento (prontuário) ───────────────────────────────────────────────
+// ── Finalizar atendimento (prontuário) ───────────────────────────────────────────────
 router.post('/atendimento/:consulta_id/finalizar', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
@@ -126,23 +148,22 @@ router.post('/atendimento/:consulta_id/finalizar', async (req, res) => {
       .from('consultas').select('paciente_id, clinica_id').eq('id', req.params.consulta_id).single()
     if (!consulta) return res.status(404).json({ error: 'Consulta não encontrada.' })
 
-    // ✔ descricao gerada automaticamente para satisfazer NOT NULL
     const descricao = gerarDescricao({ diagnostico, anamnese, conduta })
 
     const { data: pront, error: ep } = await supabase.from('prontuarios')
       .upsert([{
-        consulta_id:     req.params.consulta_id,
-        paciente_id:     consulta.paciente_id,
+        consulta_id:      req.params.consulta_id,
+        paciente_id:      consulta.paciente_id,
         medico_id,
-        clinica_id:      consulta.clinica_id || req.usuario.clinica_id,
-        descricao,           // ✔ satisfaz NOT NULL
+        clinica_id:       consulta.clinica_id || req.usuario.clinica_id,
+        descricao,
         anamnese,
         exame_fisico,
         diagnostico,
         cid10,
         conduta,
         prescricao,
-        retorno_dias:    retorno_dias || null,
+        retorno_dias:     retorno_dias || null,
         observacoes,
         data_atendimento: new Date().toISOString().split('T')[0],
       }], { onConflict: 'consulta_id' })
@@ -153,13 +174,13 @@ router.post('/atendimento/:consulta_id/finalizar', async (req, res) => {
     await registrarLog({
       usuario: req.usuario, acao: 'criar', tabela: 'prontuarios',
       registro_id: pront[0]?.id,
-      detalhes: { consulta_id: req.params.consulta_id, diagnostico }
+      detalhes: { consulta_id: req.params.consulta_id, diagnostico },
     })
     res.status(201).json(pront[0])
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ─── Buscar prontuário existente ────────────────────────────────────────────────────────
+// ── Buscar prontuário existente ────────────────────────────────────────────────────────
 router.get('/atendimento/:consulta_id', async (req, res) => {
   try {
     const { data, error } = await supabase.from('prontuarios')
@@ -169,7 +190,7 @@ router.get('/atendimento/:consulta_id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ─── Histórico ─────────────────────────────────────────────────────────────────────────────
+// ── Histórico ─────────────────────────────────────────────────────────────────────────────
 router.get('/historico', async (req, res) => {
   try {
     const medico_id = await getMedicoId(req)
@@ -184,7 +205,7 @@ router.get('/historico', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ─── Criar usuário para médico ───────────────────────────────────────────────────────────
+// ── Criar usuário para médico ───────────────────────────────────────────────────────────
 router.post('/criar-usuario', async (req, res) => {
   try {
     const { medico_id, email, senha } = req.body
@@ -213,7 +234,7 @@ router.post('/criar-usuario', async (req, res) => {
     await registrarLog({
       usuario: req.usuario, acao: 'criar', tabela: 'usuarios',
       registro_id: usuario.id,
-      detalhes: { perfil: 'medico', medico_id, email }
+      detalhes: { perfil: 'medico', medico_id, email },
     })
     res.status(201).json({ ok: true, usuario_id: usuario.id })
   } catch (e) { res.status(500).json({ error: e.message }) }

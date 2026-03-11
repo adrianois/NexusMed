@@ -34,47 +34,46 @@ export default function MedicoAtendimento() {
   useEffect(() => {
     async function init() {
       try {
-        // Iniciar atendimento (muda status para em_atendimento)
-        const [rc, rpront] = await Promise.all([
-          api.get(`/medico/agenda`).then(r =>
-            r.data.find ? Promise.resolve(r) : Promise.resolve(r)
-          ),
+        // Usa rotas exclusivas do módulo médico (sem depender de /consultas)
+        const [rconsulta, rpront] = await Promise.all([
+          api.get(`/medico/consulta/${consulta_id}`),
           api.get(`/medico/atendimento/${consulta_id}`),
         ])
-        // Busca dados da consulta
-        const rcons = await api.get(`/medico/agenda`)
-        const cons  = rcons.data.find ? rcons.data : []
-        // Busca de todas as consultas pelo ID
-        const rcFull = await api.get(`/consultas`).catch(() => ({ data: [] }))
-        const c = (rcFull.data || []).find(x => String(x.id) === String(consulta_id))
+
+        const c = rconsulta.data
         setConsulta(c)
         if (c?.status === 'liberada') setSoLeitura(true)
-        // Busca paciente
+
+        // Busca paciente pela rota do módulo médico
         if (c?.paciente_id) {
-          const rp = await api.get(`/pacientes`)
-          setPaciente((rp.data || []).find(p => p.id === c.paciente_id) || null)
+          const rp = await api.get(`/medico/paciente/${c.paciente_id}`)
+          setPaciente(rp.data || null)
         }
+
         // Carrega prontuário existente
         if (rpront.data) {
           const d = rpront.data
           setForm({
-            anamnese:    d.anamnese    || '',
-            exame_fisico:d.exame_fisico|| '',
-            diagnostico: d.diagnostico || '',
-            cid10:       d.cid10       || '',
-            conduta:     d.conduta     || '',
-            prescricao:  d.prescricao  || '',
-            retorno_dias:d.retorno_dias|| '',
-            observacoes: d.observacoes || '',
+            anamnese:     d.anamnese     || '',
+            exame_fisico: d.exame_fisico || '',
+            diagnostico:  d.diagnostico  || '',
+            cid10:        d.cid10        || '',
+            conduta:      d.conduta      || '',
+            prescricao:   d.prescricao   || '',
+            retorno_dias: d.retorno_dias || '',
+            observacoes:  d.observacoes  || '',
           })
-          if (c?.status !== 'liberada') setSoLeitura(false)
         }
+
         // Inicia atendimento se ainda não iniciado
-        if (c && !['em_atendimento','liberada'].includes(c.status)) {
+        if (c && !['em_atendimento', 'liberada'].includes(c.status)) {
           await api.post(`/medico/atendimento/${consulta_id}/iniciar`).catch(() => {})
         }
-      } catch (e) { toast('Erro ao carregar: ' + e.message, 'error') }
-      finally { setLoading(false) }
+      } catch (e) {
+        toast('Erro ao carregar: ' + (e.response?.data?.error || e.message), 'error')
+      } finally {
+        setLoading(false)
+      }
     }
     init()
   }, [consulta_id])
@@ -87,8 +86,11 @@ export default function MedicoAtendimento() {
       await api.post(`/medico/atendimento/${consulta_id}/finalizar`, form)
       toast(finalizar ? 'Atendimento finalizado!' : 'Rascunho salvo!', 'success')
       if (finalizar) setTimeout(() => nav('/medico/triagem'), 1200)
-    } catch (e) { toast('Erro: ' + (e.response?.data?.error || e.message), 'error') }
-    finally { setSalvando(false) }
+    } catch (e) {
+      toast('Erro: ' + (e.response?.data?.error || e.message), 'error')
+    } finally {
+      setSalvando(false)
+    }
   }
 
   return (
@@ -112,14 +114,14 @@ export default function MedicoAtendimento() {
                   👤 {paciente?.nome || '—'}
                 </div>
                 <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '4px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                  {paciente?.data_nascimento && <span>🎂 {new Date(paciente.data_nascimento+'T12:00:00').toLocaleDateString('pt-BR')}</span>}
+                  {paciente?.data_nascimento && <span>🎂 {new Date(paciente.data_nascimento + 'T12:00:00').toLocaleDateString('pt-BR')}</span>}
                   {paciente?.telefone && <span>📱 {paciente.telefone}</span>}
                   {paciente?.plano_saude && <span>🏥 {paciente.plano_saude}</span>}
                 </div>
               </div>
               {consulta && (
                 <div style={{ textAlign: 'right', fontSize: '0.8rem', color: '#64748b' }}>
-                  <div>📅 {new Date((consulta.data_consulta||'')+'T12:00:00').toLocaleDateString('pt-BR')}</div>
+                  <div>📅 {new Date((consulta.data_consulta || '') + 'T12:00:00').toLocaleDateString('pt-BR')}</div>
                   <div>⏰ {consulta.horario || '—'}</div>
                   <div style={{ marginTop: '4px', fontStyle: 'italic', color: '#475569' }}>{consulta.motivo}</div>
                 </div>
@@ -127,7 +129,7 @@ export default function MedicoAtendimento() {
             </div>
           )}
 
-          {/* Triagem */}
+          {/* Dados de triagem */}
           {consulta?.triagem_queixa && (
             <div style={{
               background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.2)',
@@ -150,7 +152,7 @@ export default function MedicoAtendimento() {
             </div>
           )}
 
-          {/* Formulário de atendimento */}
+          {/* Formulário */}
           <div style={{
             background: 'linear-gradient(145deg,#111827,#0f172a)',
             border: '1px solid rgba(255,255,255,0.07)',
@@ -172,7 +174,7 @@ export default function MedicoAtendimento() {
 
             <div style={{ marginBottom: '22px' }}>
               {sectionTitle('🏥 Diagnóstico')}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '12px', marginBottom: '0' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '12px' }}>
                 <div>
                   <label className='form-label' style={{ fontSize: '0.72rem', marginBottom: '5px', display: 'block' }}>Diagnóstico</label>
                   <input className='form-input' name='diagnostico' value={form.diagnostico} onChange={handle}
