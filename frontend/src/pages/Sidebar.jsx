@@ -48,42 +48,44 @@ export default function Sidebar({ onClose }) {
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', overflowY: 'auto' }}>
 
-        {/* ── Módulo Médico ──────────────────────────── */}
+        {/* ── Módulo Médico ── */}
         {perfil === 'medico' && (
           <>
             <SEP label='Médico' />
-            <ITEM to='/medico'             icon='🩺' label='Meu Painel'     />
-            <ITEM to='/medico/agenda'      icon='📅' label='Minha Agenda'   />
-            <ITEM to='/medico/triagem'     icon='🔔' label='Fila Triagem'   />
-            <ITEM to='/medico/historico'   icon='📁' label='Histórico'      />
-            <ITEM to='/medico/documentos'  icon='📑' label='Documentos'     />
-            <ITEM to='/minha-senha'        icon='🔒' label='Minha Senha'    />
+            <ITEM to='/medico'            icon='🩺' label='Meu Painel'    />
+            <ITEM to='/medico/agenda'     icon='📅' label='Minha Agenda'  />
+            <ITEM to='/medico/triagem'    icon='🔔' label='Fila Triagem'  />
+            <ITEM to='/medico/historico'  icon='📁' label='Histórico'     />
+            <ITEM to='/medico/documentos' icon='📑' label='Documentos'    />
+            <ITEM to='/minha-senha'       icon='🔒' label='Minha Senha'   />
           </>
         )}
 
-        {/* ── Perfil normal (recepção/atendente) ─────── */}
+        {/* ── Perfil normal (recepção/atendente) ── */}
         {perfil === 'normal' && (
           <>
-            <SEP label='Geral' />
-            <ITEM to='/dashboard' icon='📊' label='Dashboard'  />
-            <ITEM to='/pacientes' icon='👥' label='Pacientes'  />
-            <ITEM to='/consultas' icon='📅' label='Consultas'  />
-            <ITEM to='/medicos'   icon='👨‍⚕️' label='Médicos'   />
-            <ITEM to='/triagem'   icon='🩺' label='Triagem'    />
-            <ITEM to='/retornos'  icon='🔄' label='Retornos'   />
+            <SEP label='Recepção' />
+            <ITEM to='/dashboard'       icon='📊' label='Dashboard'       />
+            <ITEM to='/pacientes'       icon='👥' label='Pacientes'       />
+            <ITEM to='/consultas'       icon='📅' label='Consultas'       />
+            <ITEM to='/medicos'         icon='👨‍⚕️' label='Médicos'        />
+            <ITEM to='/triagem'         icon='🩺' label='Triagem'         />
+            <ITEM to='/pos-atendimento' icon='🏥' label='Pós-Atendimento' />
+            <ITEM to='/retornos'        icon='🔄' label='Retornos'        />
           </>
         )}
 
-        {/* ── Gestor ───────────────────────────────── */}
+        {/* ── Gestor ── */}
         {['gestor', 'admin'].includes(perfil) && perfil !== 'admin' && (
           <>
-            <SEP label='Geral' />
-            <ITEM to='/dashboard'   icon='📊' label='Dashboard'   />
-            <ITEM to='/pacientes'   icon='👥' label='Pacientes'   />
-            <ITEM to='/consultas'   icon='📅' label='Consultas'   />
-            <ITEM to='/medicos'     icon='👨‍⚕️' label='Médicos'    />
-            <ITEM to='/triagem'     icon='🩺' label='Triagem'     />
-            <ITEM to='/retornos'    icon='🔄' label='Retornos'    />
+            <SEP label='Recepção' />
+            <ITEM to='/dashboard'       icon='📊' label='Dashboard'       />
+            <ITEM to='/pacientes'       icon='👥' label='Pacientes'       />
+            <ITEM to='/consultas'       icon='📅' label='Consultas'       />
+            <ITEM to='/medicos'         icon='👨‍⚕️' label='Médicos'        />
+            <ITEM to='/triagem'         icon='🩺' label='Triagem'         />
+            <ITEM to='/pos-atendimento' icon='🏥' label='Pós-Atendimento' />
+            <ITEM to='/retornos'        icon='🔄' label='Retornos'        />
             <SEP label='Gestão' />
             <ITEM to='/gestor'          icon='📊' label='Painel Gestor'  />
             <ITEM to='/gestor/usuarios' icon='👤' label='Usuários'        />
@@ -91,29 +93,30 @@ export default function Sidebar({ onClose }) {
           </>
         )}
 
-        {/* ── Admin ────────────────────────────────── */}
+        {/* ── Admin ── */}
         {perfil === 'admin' && (
           <>
-            <SEP label='Geral' />
-            <ITEM to='/dashboard'   icon='📊' label='Dashboard'   />
-            <ITEM to='/pacientes'   icon='👥' label='Pacientes'   />
-            <ITEM to='/consultas'   icon='📅' label='Consultas'   />
-            <ITEM to='/medicos'     icon='👨‍⚕️' label='Médicos'    />
-            <ITEM to='/triagem'     icon='🩺' label='Triagem'     />
-            <ITEM to='/retornos'    icon='🔄' label='Retornos'    />
+            <SEP label='Recepção' />
+            <ITEM to='/dashboard'       icon='📊' label='Dashboard'       />
+            <ITEM to='/pacientes'       icon='👥' label='Pacientes'       />
+            <ITEM to='/consultas'       icon='📅' label='Consultas'       />
+            <ITEM to='/medicos'         icon='👨‍⚕️' label='Médicos'        />
+            <ITEM to='/triagem'         icon='🩺' label='Triagem'         />
+            <ITEM to='/pos-atendimento' icon='🏥' label='Pós-Atendimento' />
+            <ITEM to='/retornos'        icon='🔄' label='Retornos'        />
             <SEP label='Gestão' />
             <ITEM to='/gestor'          icon='📊' label='Painel Gestor'  />
             <ITEM to='/gestor/usuarios' icon='👤' label='Usuários'        />
             <ITEM to='/gestor/logs'     icon='📝' label='Logs'            />
             <SEP label='Admin' />
             <ITEM to='/admin'          icon='⚙️' label='Painel Admin'  />
-            <ITEM to='/admin/clinicas' icon='🏥' label='Clínicas'      />
-            <ITEM to='/admin/usuarios' icon='👤' label='Usuários'      />
-            <ITEM to='/logs'           icon='📝' label='Logs'          />
+            <ITEM to='/admin/clinicas' icon='🏥' label='Clínicas'       />
+            <ITEM to='/admin/usuarios' icon='👤' label='Usuários'       />
+            <ITEM to='/logs'           icon='📝' label='Logs'           />
           </>
         )}
 
-        {/* Minha Senha — todos exceto médico (médico já tem no bloco dele) */}
+        {/* Minha Senha — todos exceto médico */}
         {perfil !== 'medico' && (
           <ITEM to='/minha-senha' icon='🔒' label='Minha Senha' />
         )}
