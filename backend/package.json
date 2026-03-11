@@ -1,7 +1,7 @@
 {
   "name": "nexusmed-backend",
   "version": "1.0.0",
-  "description": "API REST do NexusMed - Sistema de gest\u00e3o de cl\u00ednicas",
+  "description": "API REST do NexusMed - Sistema de gestão de clínicas",
   "type": "module",
   "main": "index.js",
   "scripts": {
@@ -16,7 +16,8 @@
     "dotenv": "^16.6.1",
     "express": "^4.22.1",
     "jsonwebtoken": "^9.0.3",
-    "nodemailer": "^6.9.16"
+    "nodemailer": "^6.9.16",
+    "pdfkit": "^0.17.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
