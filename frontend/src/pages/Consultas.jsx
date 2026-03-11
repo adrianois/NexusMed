@@ -1,248 +1,205 @@
 import { useEffect, useState } from 'react'
 import api from '../api'
 import PageLayout from '../components/PageLayout'
+import { useConfirm } from '../components/ConfirmModal'
+import { useToast } from '../components/Toast'
 import './InnerPage.css'
 
-const DIAS_SEMANA = ['dom','seg','ter','qua','qui','sex','sab']
-const FORM_INICIAL = { paciente_id:'', medico_id:'', horario_selecionado:'', data_consulta:'', motivo:'', observacoes:'' }
+const STATUS_CFG = {
+  agendada:   { color: '#60a5fa', bg: 'rgba(96,165,250,0.12)',  label: 'Agendada'   },
+  confirmada: { color: '#4ade80', bg: 'rgba(34,197,94,0.12)',   label: 'Confirmada' },
+  em_triagem: { color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  label: 'Em Triagem' },
+  triado:     { color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', label: 'Triado'     },
+  liberada:   { color: '#94a3b8', bg: 'rgba(148,163,184,0.1)',  label: 'Liberada'   },
+}
 
-const STATUS_CONFIG = {
-  agendada:  { label: 'Agendada',   bg: '#1e3a5f', color: '#93c5fd', emoji: '🗓️' },
-  confirmada:{ label: 'Confirmada', bg: '#14532d', color: '#86efac', emoji: '✅' },
-  liberada:  { label: 'Liberada',   bg: '#3b0764', color: '#d8b4fe', emoji: '🔓' },
+const FORM_INICIAL = { paciente_id: '', medico_id: '', data_consulta: '', horario: '', motivo: '', observacoes: '', status: 'agendada' }
+
+function BadgeStatus({ status }) {
+  const cfg = STATUS_CFG[status] || { color: '#64748b', bg: 'transparent', label: status }
+  return (
+    <span style={{
+      background: cfg.bg, color: cfg.color,
+      border: `1px solid ${cfg.color}33`,
+      padding: '2px 10px', borderRadius: '20px',
+      fontSize: '0.72rem', fontWeight: 700,
+    }}>{cfg.label}</span>
+  )
 }
 
 export default function Consultas() {
-  const [consultas,setConsultas]     = useState([])
-  const [pacientes,setPacientes]     = useState([])
-  const [medicos,setMedicos]         = useState([])
-  const [loading,setLoading]         = useState(true)
-  const [erro,setErro]               = useState(null)
-  const [mostrarForm,setMostrarForm] = useState(false)
-  const [salvando,setSalvando]       = useState(false)
-  const [form,setForm]               = useState(FORM_INICIAL)
-  const [editandoId,setEditandoId]   = useState(null)
-  const [horariosDisponiveis,setHorariosDisponiveis] = useState([])
-  const [alterandoStatus,setAlterandoStatus] = useState(null)
+  const [consultas,    setConsultas]    = useState([])
+  const [pacientes,    setPacientes]    = useState([])
+  const [medicos,      setMedicos]      = useState([])
+  const [loading,      setLoading]      = useState(true)
+  const [mostrarForm,  setMostrarForm]  = useState(false)
+  const [editando,     setEditando]     = useState(null)
+  const [salvando,     setSalvando]     = useState(false)
+  const [busca,        setBusca]        = useState('')
+  const [form,         setForm]         = useState(FORM_INICIAL)
+  const { confirmar, ConfirmModalUI }   = useConfirm()
+  const { toast, ToastUI }              = useToast()
 
-  const carregar = () => {
+  const carregar = async () => {
     setLoading(true)
-    Promise.all([api.get('/consultas'),api.get('/pacientes'),api.get('/medicos')])
-      .then(([c,p,m])=>{ setConsultas(c.data||[]); setPacientes(p.data||[]); setMedicos((m.data||[]).filter(x=>x.ativo!==false)) })
-      .catch(()=>setErro('Erro ao carregar dados.'))
-      .finally(()=>setLoading(false))
+    try {
+      const [rc, rp, rm] = await Promise.all([api.get('/consultas'), api.get('/pacientes'), api.get('/medicos')])
+      setConsultas(rc.data || []); setPacientes(rp.data || []); setMedicos(rm.data || [])
+    } finally { setLoading(false) }
   }
-  useEffect(()=>{carregar()},[]) 
+  useEffect(() => { carregar() }, [])
 
-  useEffect(()=>{
-    if (!form.medico_id||!form.data_consulta){setHorariosDisponiveis([]);return}
-    const medico = medicos.find(m=>m.id===form.medico_id)
-    if (!medico?.agenda){setHorariosDisponiveis([]);return}
-    const dia = DIAS_SEMANA[new Date(form.data_consulta+'T12:00:00').getDay()]
-    const agenda = medico.agenda[dia]||[]
-    const ocupados = consultas
-      .filter(c=>c.medico_id===form.medico_id&&c.data_consulta===form.data_consulta&&c.id!==editandoId&&c.status!=='liberada')
-      .map(c=>c.horario)
-    setHorariosDisponiveis(agenda.filter(h=>!ocupados.includes(h)))
-    setForm(prev=>({...prev,horario_selecionado:''}))
-  },[form.medico_id,form.data_consulta])
+  const nomePaciente = id => pacientes.find(p => p.id === id)?.nome || '—'
+  const nomeMedico   = id => medicos.find(m => m.id === id)?.nome  || '—'
+  const handleChange = e => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
 
-  const handleChange = e => setForm(prev=>({...prev,[e.target.name]:e.target.value}))
-
-  const abrirEdicao = c => {
-    setForm({ paciente_id:c.paciente_id||'', medico_id:c.medico_id||'',
-      horario_selecionado:c.horario||'', data_consulta:c.data_consulta||'',
-      motivo:c.motivo||'', observacoes:c.observacoes||'' })
-    setEditandoId(c.id); setMostrarForm(true); window.scrollTo({top:0,behavior:'smooth'})
+  const abrirNovo   = () => { setForm(FORM_INICIAL); setEditando(null); setMostrarForm(true) }
+  const abrirEditar = c  => {
+    setForm({ paciente_id: c.paciente_id||'', medico_id: c.medico_id||'', data_consulta: c.data_consulta||'', horario: c.horario||'', motivo: c.motivo||'', observacoes: c.observacoes||'', status: c.status||'agendada' })
+    setEditando(c.id); setMostrarForm(true)
   }
-
-  const cancelar = () => { setMostrarForm(false); setForm(FORM_INICIAL); setEditandoId(null) }
 
   const handleSubmit = async e => {
     e.preventDefault()
-    if (!form.paciente_id||!form.data_consulta||!form.motivo) return alert('Paciente, data e motivo são obrigatórios!')
-    if (form.medico_id&&!form.horario_selecionado) return alert('Selecione um horário disponível!')
+    if (!form.paciente_id || !form.data_consulta || !form.motivo) { toast('Paciente, data e motivo são obrigatórios!', 'error'); return }
     setSalvando(true)
     try {
-      const payload = { paciente_id:form.paciente_id, medico_id:form.medico_id||null,
-        data_consulta:form.data_consulta, horario:form.horario_selecionado||null,
-        motivo:form.motivo, observacoes:form.observacoes }
-      if (editandoId) await api.put(`/consultas/${editandoId}`, payload)
-      else            await api.post('/consultas', payload)
-      cancelar(); carregar()
-    } catch (err) { alert('Erro: '+(err.response?.data?.error||err.message)) }
+      if (editando) { await api.put(`/consultas/${editando}`, form); toast('Consulta atualizada!', 'success') }
+      else          { await api.post('/consultas', form);             toast('Consulta agendada!',   'success') }
+      setMostrarForm(false); setEditando(null); setForm(FORM_INICIAL); carregar()
+    } catch (err) { toast('Erro: ' + (err.response?.data?.error || err.message), 'error') }
     finally { setSalvando(false) }
   }
 
-  const alterarStatus = async (c, novoStatus) => {
-    if (alterandoStatus) return
-    const msgs = {
-      confirmada: `Confirmar a consulta de "${getNome(pacientes,c.paciente_id)}"?`,
-      liberada:   `Liberar o horário ${c.horario||''} de "${getNome(pacientes,c.paciente_id)}"?\nO horário ficará disponível para outro paciente.`,
-      agendada:   `Reabrir a consulta de "${getNome(pacientes,c.paciente_id)}" como agendada?`,
-    }
-    if (!confirm(msgs[novoStatus])) return
-    setAlterandoStatus(c.id)
+  const alterarStatus = async (id, novoStatus) => {
     try {
-      await api.patch(`/consultas/${c.id}/status`, { status: novoStatus })
+      await api.patch(`/consultas/${id}/status`, { status: novoStatus })
+      toast(`Status atualizado para "${STATUS_CFG[novoStatus]?.label || novoStatus}".`, 'success')
       carregar()
-    } catch (err) { alert('Erro: '+(err.response?.data?.error||err.message)) }
-    finally { setAlterandoStatus(null) }
+    } catch (err) { toast('Erro: ' + (err.response?.data?.error || err.message), 'error') }
   }
 
-  const excluir = async c => {
-    const nomePaciente = pacientes.find(p=>p.id===c.paciente_id)?.nome||''
-    if (!confirm(`Excluir a consulta de "${nomePaciente}" em ${formatarData(c.data_consulta)} às ${c.horario||'?'}?`)) return
-    try { await api.delete(`/consultas/${c.id}`); carregar() }
-    catch (err) { alert(`❌ ${err.response?.data?.error||err.message}`) }
+  const excluir = async (id) => {
+    const ok = await confirmar({
+      titulo: 'Excluir Consulta',
+      mensagem: 'Deseja excluir esta consulta? Ela não pode ter prontuários vinculados.',
+      labelOk: 'Excluir',
+      tipo: 'danger',
+    })
+    if (!ok) return
+    try {
+      await api.delete(`/consultas/${id}`)
+      toast('Consulta excluída.', 'success')
+      carregar()
+    } catch (err) { toast('Erro: ' + (err.response?.data?.error || err.message), 'error') }
   }
 
-  const getNome = (lista,id) => lista.find(x=>x.id===id)?.nome||'—'
-  const formatarData = d => { if(!d) return '—'; const [a,m,dia]=d.split('-'); return `${dia}/${m}/${a}` }
-  const medicoSel = medicos.find(m=>m.id===form.medico_id)
-  const getStatus = s => STATUS_CONFIG[s] || STATUS_CONFIG.agendada
+  const filtradas = consultas.filter(c =>
+    !busca ||
+    nomePaciente(c.paciente_id).toLowerCase().includes(busca.toLowerCase()) ||
+    nomeMedico(c.medico_id).toLowerCase().includes(busca.toLowerCase()) ||
+    c.motivo?.toLowerCase().includes(busca.toLowerCase())
+  )
+
+  const proximosStatus = {
+    agendada:   ['confirmada'],
+    confirmada: ['liberada'],
+    em_triagem: ['triado'],
+    triado:     ['liberada'],
+    liberada:   [],
+  }
 
   return (
     <PageLayout title='📅 Consultas'>
+      <ConfirmModalUI /><ToastUI />
+
       <div className='inner-toolbar'>
-        <button className={`btn ${mostrarForm?'btn-secondary':'btn-primary'}`} onClick={()=>{if(mostrarForm)cancelar();else setMostrarForm(true)}}>
-          {mostrarForm?'✖ Cancelar':'+ Nova Consulta'}
+        <input className='form-input' style={{ maxWidth: '280px' }}
+          placeholder='🔍 Buscar por paciente, médico ou motivo...'
+          value={busca} onChange={e => setBusca(e.target.value)} />
+        <button className={`btn ${mostrarForm ? 'btn-secondary' : 'btn-primary'}`}
+          onClick={() => { if (mostrarForm) { setMostrarForm(false); setEditando(null); setForm(FORM_INICIAL) } else abrirNovo() }}>
+          {mostrarForm ? '✖ Cancelar' : '+ Nova Consulta'}
         </button>
       </div>
 
       {mostrarForm && (
         <div className='inner-card'>
-          <h3 className='inner-card-title'>{editandoId?'✏️ Editar Consulta':'Agendar Nova Consulta'}</h3>
+          <h3 className='inner-card-title'>{editando ? '✏️ Editar Consulta' : 'Agendar Nova Consulta'}</h3>
           <form onSubmit={handleSubmit} className='inner-form'>
             <div className='form-field form-field--full'>
               <label className='form-label'>Paciente <span className='required'>*</span></label>
               <select className='form-select' name='paciente_id' value={form.paciente_id} onChange={handleChange} required>
-                <option value=''>Selecione um paciente</option>
-                {pacientes.map(p=><option key={p.id} value={p.id}>{p.nome}</option>)}
+                <option value=''>Selecione o paciente</option>
+                {pacientes.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
               </select>
             </div>
-            <div className='form-field'>
-              <label className='form-label'>Médico Responsável</label>
+            <div className='form-field form-field--full'>
+              <label className='form-label'>Médico</label>
               <select className='form-select' name='medico_id' value={form.medico_id} onChange={handleChange}>
-                <option value=''>-- Selecione --</option>
-                {medicos.map(m=><option key={m.id} value={m.id}>{m.nome}{m.especialidade?` — ${m.especialidade}`:''}</option>)}
+                <option value=''>Sem médico definido</option>
+                {medicos.map(m => <option key={m.id} value={m.id}>{m.nome} {m.especialidade ? `— ${m.especialidade}` : ''}</option>)}
               </select>
             </div>
             <div className='form-field'>
               <label className='form-label'>Data <span className='required'>*</span></label>
               <input className='form-input' type='date' name='data_consulta' value={form.data_consulta} onChange={handleChange} required />
             </div>
-            {form.medico_id&&form.data_consulta&&(
-              <div className='form-field form-field--full'>
-                <label className='form-label'>Horário Disponível <span className='required'>*</span> {medicoSel&&<span style={{color:'#64748b',fontWeight:400,fontSize:'0.8rem'}}>({medicoSel.nome})</span>}</label>
-                {horariosDisponiveis.length===0
-                  ? <div style={{padding:'10px',background:'#451a03',borderRadius:'6px',color:'#fbbf24',fontSize:'0.8rem'}}>⚠️ Nenhum horário disponível nesta data.</div>
-                  : <div style={{display:'flex',flexWrap:'wrap',gap:'7px',paddingTop:'4px'}}>
-                      {horariosDisponiveis.map(h=>(
-                        <button key={h} type='button' onClick={()=>setForm(prev=>({...prev,horario_selecionado:h}))}
-                          style={{padding:'7px 14px',borderRadius:'6px',cursor:'pointer',border:'1px solid',fontSize:'0.86rem',fontWeight:600,
-                            background:form.horario_selecionado===h?'#1e40af':'#1e293b',
-                            color:form.horario_selecionado===h?'#93c5fd':'#94a3b8',
-                            borderColor:form.horario_selecionado===h?'#3b82f6':'#334155'}}>{h}</button>
-                      ))}
-                    </div>
-                }
-              </div>
-            )}
-            {(!form.medico_id||!form.data_consulta)&&(
-              <div className='form-field'>
-                <label className='form-label'>Horário</label>
-                <input className='form-input' type='time' name='horario_selecionado' value={form.horario_selecionado} onChange={handleChange} />
-              </div>
-            )}
+            <div className='form-field'>
+              <label className='form-label'>Horário</label>
+              <input className='form-input' type='time' name='horario' value={form.horario} onChange={handleChange} />
+            </div>
             <div className='form-field form-field--full'>
               <label className='form-label'>Motivo <span className='required'>*</span></label>
-              <input className='form-input' type='text' name='motivo' value={form.motivo} onChange={handleChange} placeholder='Ex: Consulta de rotina...' required />
+              <input className='form-input' name='motivo' value={form.motivo} onChange={handleChange} placeholder='Motivo da consulta' required />
             </div>
             <div className='form-field form-field--full'>
               <label className='form-label'>Observações</label>
-              <textarea className='form-textarea' name='observacoes' rows={3} value={form.observacoes} onChange={handleChange} placeholder='Anotações adicionais...' />
+              <textarea className='form-textarea' name='observacoes' value={form.observacoes} onChange={handleChange} rows={2} placeholder='Observações adicionais...' />
             </div>
             <div className='form-actions'>
-              <button type='submit' className='btn btn-success' disabled={salvando}>{salvando?'Salvando...':editandoId?'✓ Salvar Alterações':'✓ Confirmar Agendamento'}</button>
-              <button type='button' className='btn btn-secondary' onClick={cancelar}>Cancelar</button>
+              <button type='submit' className='btn btn-success' disabled={salvando}>
+                {salvando ? 'Salvando...' : editando ? '✓ Atualizar' : '✓ Agendar'}
+              </button>
+              <button type='button' className='btn btn-secondary'
+                onClick={() => { setMostrarForm(false); setEditando(null); setForm(FORM_INICIAL) }}>Cancelar</button>
             </div>
           </form>
         </div>
       )}
 
       {loading && <p className='page-loading'>Carregando...</p>}
-      {erro    && <p className='page-erro'>{erro}</p>}
-
-      {!loading && !erro && (
-        consultas.length===0
-          ? (<div className='page-vazio-box'><span className='page-vazio-icon'>📅</span><p>Nenhuma consulta agendada.</p><button className='btn btn-primary' onClick={()=>setMostrarForm(true)}>+ Agendar</button></div>)
-          : (
-            <div className='table-wrapper'>
-              <table className='data-table'>
-                <thead><tr><th>Paciente</th><th>Médico</th><th>Data</th><th>Horário</th><th>Motivo</th><th>Status</th><th>Ações</th></tr></thead>
-                <tbody>
-                  {consultas.sort((a,b)=>(a.data_consulta+a.horario)>(b.data_consulta+b.horario)?1:-1).map(c=>{
-                    const st = getStatus(c.status)
-                    const isLiberada = c.status==='liberada'
-                    return (
-                    <tr key={c.id} style={isLiberada?{opacity:0.55}:{}}>
-                      <td style={{fontWeight:600}}>{getNome(pacientes,c.paciente_id)}</td>
-                      <td style={{color:'#94a3b8'}}>{c.medico_id?getNome(medicos,c.medico_id):<span style={{color:'#475569'}}>Não informado</span>}</td>
-                      <td>{formatarData(c.data_consulta)}</td>
-                      <td>
-                        {isLiberada
-                          ? <span style={{background:'#3b0764',color:'#d8b4fe',padding:'2px 8px',borderRadius:'4px',fontSize:'0.8rem',fontWeight:600,textDecoration:'line-through'}}>{c.horario||'—'}</span>
-                          : <span style={{background:'#1e3a5f',color:'#93c5fd',padding:'2px 8px',borderRadius:'4px',fontSize:'0.8rem',fontWeight:600}}>{c.horario||'—'}</span>
-                        }
-                      </td>
-                      <td style={{fontSize:'0.88rem'}}>{c.motivo}</td>
-                      <td>
-                        <span style={{background:st.bg,color:st.color,padding:'3px 9px',borderRadius:'12px',fontSize:'0.75rem',fontWeight:700,whiteSpace:'nowrap'}}>
-                          {st.emoji} {st.label}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{display:'flex',gap:'5px',flexWrap:'wrap'}}>
-                          {!isLiberada && c.status!=='confirmada' && (
-                            <button
-                              className='btn'
-                              style={{fontSize:'0.72rem',padding:'4px 9px',background:'#14532d',color:'#86efac',border:'1px solid #166534'}}
-                              disabled={alterandoStatus===c.id}
-                              onClick={()=>alterarStatus(c,'confirmada')}>
-                              ✅ Confirmar
-                            </button>
-                          )}
-                          {!isLiberada && (
-                            <button
-                              className='btn'
-                              style={{fontSize:'0.72rem',padding:'4px 9px',background:'#4c1d95',color:'#ddd6fe',border:'1px solid #5b21b6'}}
-                              disabled={alterandoStatus===c.id}
-                              onClick={()=>alterarStatus(c,'liberada')}>
-                              🔓 Liberar
-                            </button>
-                          )}
-                          {isLiberada && (
-                            <button
-                              className='btn'
-                              style={{fontSize:'0.72rem',padding:'4px 9px',background:'#1e3a5f',color:'#93c5fd',border:'1px solid #1d4ed8'}}
-                              disabled={alterandoStatus===c.id}
-                              onClick={()=>alterarStatus(c,'agendada')}>
-                              🗓️ Reagendar
-                            </button>
-                          )}
-                          {!isLiberada && (
-                            <button className='btn btn-primary' style={{fontSize:'0.72rem',padding:'4px 9px'}} onClick={()=>abrirEdicao(c)}>✏️ Editar</button>
-                          )}
-                          <button className='btn btn-danger' style={{fontSize:'0.72rem',padding:'4px 9px'}} onClick={()=>excluir(c)}>🗑️ Excluir</button>
-                        </div>
-                      </td>
-                    </tr>
-                  )})}
-                </tbody>
-              </table>
-            </div>
-          )
+      {!loading && (
+        <div className='table-wrapper'>
+          <table className='data-table'>
+            <thead><tr><th>Data</th><th>Horário</th><th>Paciente</th><th>Médico</th><th>Motivo</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody>
+              {filtradas.length === 0 && <tr><td colSpan={7} style={{textAlign:'center',color:'#64748b',padding:'2rem'}}>Nenhuma consulta encontrada.</td></tr>}
+              {filtradas.map(c => (
+                <tr key={c.id}>
+                  <td style={{whiteSpace:'nowrap',fontSize:'0.85rem'}}>{c.data_consulta ? new Date(c.data_consulta+'T12:00:00').toLocaleDateString('pt-BR') : '—'}</td>
+                  <td style={{color:'#94a3b8'}}>{c.horario||'—'}</td>
+                  <td style={{fontWeight:600}}>{nomePaciente(c.paciente_id)}</td>
+                  <td style={{fontSize:'0.85rem',color:'#94a3b8'}}>{nomeMedico(c.medico_id)}</td>
+                  <td style={{fontSize:'0.82rem',maxWidth:'180px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.motivo}</td>
+                  <td><BadgeStatus status={c.status} /></td>
+                  <td>
+                    <div style={{display:'flex',gap:'5px',flexWrap:'wrap'}}>
+                      <button className='btn btn-secondary' style={{fontSize:'0.75rem',padding:'4px 8px'}} onClick={() => abrirEditar(c)}>✏️</button>
+                      {(proximosStatus[c.status] || []).map(ns => (
+                        <button key={ns} className='btn btn-primary' style={{fontSize:'0.72rem',padding:'4px 8px'}}
+                          onClick={() => alterarStatus(c.id, ns)}>
+                          → {STATUS_CFG[ns]?.label}
+                        </button>
+                      ))}
+                      <button className='btn btn-danger' style={{fontSize:'0.75rem',padding:'4px 8px'}} onClick={() => excluir(c.id)}>🗑️</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </PageLayout>
   )
