@@ -1,6 +1,6 @@
 /**
  * /pdf — Geração de PDF de documentos médicos
- * Usa bufferPages para escrever o rodapé na última página após o conteúdo.
+ * Rodapé escrito rotacionado na margem lateral direita — nunca cria página extra.
  */
 import { Router } from 'express'
 import PDFDocument from 'pdfkit'
@@ -42,6 +42,30 @@ const CAMPOS_LABEL = {
   assinatura_digital: 'Assinatura Digital',
 }
 
+/**
+ * Escreve o rodapé rotacionado 90° na margem lateral direita da página.
+ * Nunca interfere com o fluxo de conteúdo pois usa coordenadas absolutas
+ * fora da área útil (além dos 535px de largura do conteúdo).
+ */
+function escreverRodapeLateral(pdf, dataFormatada, id) {
+  const texto = `Documento gerado em ${dataFormatada} pelo sistema NexusMed — ID: ${id}`
+  const pageHeight = pdf.page.height  // A4 = 841.89pt
+  const x = pdf.page.width - 14       // margem direita extrema (~581pt)
+  const y = pageHeight / 2            // centro vertical da página
+
+  pdf.save()
+  pdf
+    .fontSize(7)
+    .fillColor('#b0b8c8')
+    .rotate(90, { origin: [x, y] })
+    .text(texto, x - (pageHeight * 0.35), y, {
+      width: pageHeight * 0.7,
+      align: 'center',
+      lineBreak: false,
+    })
+  pdf.restore()
+}
+
 // GET /pdf/documento/:id
 router.get('/documento/:id', async (req, res) => {
   try {
@@ -67,11 +91,9 @@ router.get('/documento/:id', async (req, res) => {
     }
 
     const titulo = LABELS[doc.tipo] || doc.tipo
-    const dataDoc = new Date(doc['createdAt'] || Date.now())
+    const dataDoc      = new Date(doc['createdAt'] || Date.now())
     const dataFormatada = dataDoc.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
 
-    // bufferPages: true = guarda todas as páginas em memória antes de enviar
-    // Isso permite navegar entre páginas depois de finalizar o conteúdo
     const pdf = new PDFDocument({ margin: 60, size: 'A4', bufferPages: true })
 
     res.setHeader('Content-Type', 'application/pdf')
@@ -91,7 +113,7 @@ router.get('/documento/:id', async (req, res) => {
       .fontSize(16).fillColor('#0f172a').text(titulo.toUpperCase(), { align: 'center' })
       .moveDown(1)
 
-    // ── Data, médico, paciente ──────────────────────────────────────────────
+    // ── Data + Médico + Paciente ────────────────────────────────────────────
     pdf.fontSize(10).fillColor('#475569').text(`Data: ${dataFormatada}`, { align: 'right' }).moveDown(0.5)
 
     if (medico) {
@@ -138,7 +160,6 @@ router.get('/documento/:id', async (req, res) => {
         pdf.fontSize(8).fillColor('#64748b').text(`Hash: ${doc.hash_documento}`, { align: 'center' })
       }
     } else {
-      // Linha de assinatura — sem moveDown excessivo para não criar página extra
       pdf
         .moveTo(200, pdf.y).lineTo(400, pdf.y).strokeColor('#334155').lineWidth(1).stroke()
         .moveDown(0.3)
@@ -147,27 +168,10 @@ router.get('/documento/:id', async (req, res) => {
       if (medico?.crm) pdf.text(`CRM: ${medico.crm}`, { align: 'center' })
     }
 
-    // ── Rodapé — usando bufferPages para escrever na última página real ──────────
-    // Finalizamos o layout, depois navegamos para a última página e escrevemos
-    const totalPages = pdf.bufferedPageRange().count
-    // Vai para a última página gerada pelo conteúdo
-    pdf.switchToPage(totalPages - 1)
-
-    const pageHeight  = pdf.page.height
-    const margemBaixo = 50
-    const rodapeY     = pageHeight - margemBaixo
-
-    // Só escreve em posição absoluta no rodapé se o cursor ainda está acima
-    // Caso o conteúdo já tenha chegado lá, escreve imediatamente após
-    const y = pdf.y + 12 < rodapeY ? rodapeY : pdf.y + 8
-
-    pdf
-      .fontSize(8).fillColor('#94a3b8')
-      .text(
-        `Documento gerado em ${dataFormatada} pelo sistema NexusMed — ID: ${id}`,
-        60, y,
-        { align: 'center', width: 475, lineBreak: false }
-      )
+    // ── Rodapé lateral — escrito após bufferPages, na página 0 (primeira) ────────
+    // switchToPage não cria nova página — apenas reposiciona o cursor de desenho
+    pdf.switchToPage(0)
+    escreverRodapeLateral(pdf, dataFormatada, id)
 
     pdf.end()
   } catch (e) {
