@@ -19,7 +19,6 @@ router.use((req, res, next) => {
 
 async function getMedicoId(req) {
   if (req.usuario.perfil === 'medico') {
-    // JWT pode ter 'id' (novo) ou 'usuario_id' (legado) — suporta ambos
     const uid = req.usuario.id || req.usuario.usuario_id
     const { data, error } = await supabase
       .from('medicos')
@@ -252,6 +251,37 @@ router.post('/criar-usuario', async (req, res) => {
 // ════════════════════════════════════════════════════════════════════════════
 // DOCUMENTOS MÉDICOS
 // ════════════════════════════════════════════════════════════════════════════
+
+// ── GET /medico/documentos — Lista todos os documentos do médico logado ───────
+router.get('/documentos', async (req, res) => {
+  try {
+    const medico_id = await getMedicoId(req)
+    if (!medico_id)
+      return res.status(400).json({ error: 'Médico não encontrado para o usuário autenticado.' })
+
+    // Busca documentos com join em consultas → pacientes para trazer nome do paciente
+    const { data, error } = await supabase
+      .from('documentos_medicos')
+      .select(`
+        id, tipo, status, dados, arquivo_pdf, created_at,
+        consultas ( paciente_id, pacientes ( nome ) )
+      `)
+      .eq('medico_id', medico_id)
+      .order('created_at', { ascending: false })
+      .limit(100)
+
+    if (error) return res.status(500).json({ error: error.message })
+
+    // Formata adicionando paciente_nome no nível raiz
+    const resultado = (data || []).map(d => ({
+      ...d,
+      paciente_nome: d.consultas?.pacientes?.nome || null,
+      consultas: undefined,
+    }))
+
+    res.json(resultado)
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
 
 // ── POST /medico/documento — Cria documento ───────────────────────────────────
 router.post('/documento', async (req, res) => {
