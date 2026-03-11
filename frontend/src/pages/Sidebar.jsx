@@ -52,11 +52,12 @@ export default function Sidebar({ onClose }) {
         {perfil === 'medico' && (
           <>
             <SEP label='Médico' />
-            <ITEM to='/medico'           icon='🩺' label='Meu Painel'    />
-            <ITEM to='/medico/agenda'    icon='📅' label='Minha Agenda'  />
-            <ITEM to='/medico/triagem'   icon='🔔' label='Fila Triagem'  />
-            <ITEM to='/medico/historico' icon='📁' label='Histórico'     />
-            <ITEM to='/minha-senha'      icon='🔒' label='Minha Senha'   />
+            <ITEM to='/medico'             icon='🩺' label='Meu Painel'     />
+            <ITEM to='/medico/agenda'      icon='📅' label='Minha Agenda'   />
+            <ITEM to='/medico/triagem'     icon='🔔' label='Fila Triagem'   />
+            <ITEM to='/medico/historico'   icon='📁' label='Histórico'      />
+            <ITEM to='/medico/documentos'  icon='📑' label='Documentos'     />
+            <ITEM to='/minha-senha'        icon='🔒' label='Minha Senha'    />
           </>
         )}
 

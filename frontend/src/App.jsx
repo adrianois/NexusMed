@@ -32,6 +32,7 @@ import MedicoAgenda      from './pages/medico/MedicoAgenda'
 import MedicoTriagem     from './pages/medico/MedicoTriagem'
 import MedicoAtendimento from './pages/medico/MedicoAtendimento'
 import MedicoHistorico   from './pages/medico/MedicoHistorico'
+import MedicoDocumentos  from './pages/medico/MedicoDocumentos'
 
 const TODOS  = ['normal', 'gestor', 'admin', 'medico']
 const MEDICO = ['medico', 'gestor', 'admin']
@@ -72,12 +73,13 @@ export default function App() {
           <Route path='/gestor/trocar-senha' element={<PrivateRoute perfis={['gestor']}><GestorTrocarSenha /></PrivateRoute>} />
           <Route path='/gestor/logs'         element={<PrivateRoute perfis={['gestor', 'admin']}><GestorLogs /></PrivateRoute>} />
 
-          {/* ─── Módulo Médico (prontuários exclusivos aqui) ─── */}
+          {/* ─── Módulo Médico ─── */}
           <Route path='/medico'                          element={<PrivateRoute perfis={MEDICO}><MedicoDashboard /></PrivateRoute>} />
           <Route path='/medico/agenda'                   element={<PrivateRoute perfis={MEDICO}><MedicoAgenda /></PrivateRoute>} />
           <Route path='/medico/triagem'                  element={<PrivateRoute perfis={MEDICO}><MedicoTriagem /></PrivateRoute>} />
           <Route path='/medico/atendimento/:consulta_id' element={<PrivateRoute perfis={MEDICO}><MedicoAtendimento /></PrivateRoute>} />
           <Route path='/medico/historico'                element={<PrivateRoute perfis={MEDICO}><MedicoHistorico /></PrivateRoute>} />
+          <Route path='/medico/documentos'               element={<PrivateRoute perfis={MEDICO}><MedicoDocumentos /></PrivateRoute>} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
