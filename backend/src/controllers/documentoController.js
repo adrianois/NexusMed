@@ -1,12 +1,10 @@
 /**
  * documentoController.js
- * Controlador dos documentos médicos.
  *
- * Endpoints:
- *   POST /medico/documento          — Cria documento e gera PDF
- *   GET  /medico/documento/:id      — Retorna metadados do documento
- *   GET  /medico/documento/consulta/:consultaId — Lista documentos da consulta
- *   GET  /medico/documento/:id/pdf  — Faz download do PDF
+ * Correções aplicadas:
+ *  1. Removida verificação req.usuario.role (JWT só contém { id, email })
+ *     — autenticação de posse pelo medicoId é suficiente.
+ *  2. Todos os campos req.usuario?.id mantidos (injetado por verificarToken).
  */
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -22,9 +20,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export async function criarDocumento(req, res) {
   try {
     const { tipo, consulta_id, dados } = req.body;
-    const medicoId = req.usuario?.id;   // injetado pelo verificarToken
+    const medicoId = req.usuario?.id;
 
-    // Validações básicas
     if (!tipo || !TIPOS_VALIDOS.includes(tipo)) {
       return res.status(400).json({ erro: `Tipo inválido. Permitidos: ${TIPOS_VALIDOS.join(', ')}` });
     }
@@ -35,7 +32,6 @@ export async function criarDocumento(req, res) {
       return res.status(400).json({ erro: 'Dados do documento são obrigatórios.' });
     }
 
-    // Cria o registro no banco
     const doc = await Documento.create({
       tipo,
       consultaId: consulta_id,
@@ -44,19 +40,18 @@ export async function criarDocumento(req, res) {
       status: 'pendente_assinatura',
     });
 
-    // Tenta gerar o PDF (não bloqueia criação se falhar)
+    // Gera PDF de forma não-bloqueante
     try {
       const { caminho, hash } = await gerarPdfDocumento(doc);
       await doc.update({ arquivoPdf: caminho, hashDocumento: hash });
     } catch (pdfErr) {
       console.error('[documentoController] Erro ao gerar PDF:', pdfErr.message);
-      // Documento criado, PDF pendente — não é erro fatal
     }
 
     return res.status(201).json({
-      id:     doc.id,
-      tipo:   doc.tipo,
-      status: doc.status,
+      id:         doc.id,
+      tipo:       doc.tipo,
+      status:     doc.status,
       arquivoPdf: doc.arquivoPdf || null,
     });
   } catch (err) {
@@ -73,8 +68,8 @@ export async function buscarDocumento(req, res) {
     const doc = await Documento.findByPk(req.params.id);
     if (!doc) return res.status(404).json({ erro: 'Documento não encontrado.' });
 
-    // Garante que somente o médico dono ou admin acessa
-    if (doc.medicoId !== req.usuario?.id && req.usuario?.role !== 'admin') {
+    // Somente o médico que criou pode acessar
+    if (doc.medicoId !== req.usuario?.id) {
       return res.status(403).json({ erro: 'Acesso negado.' });
     }
 
@@ -103,13 +98,18 @@ export async function listarDocumentosConsulta(req, res) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// GET /medico/documento/:id/pdf  — download direto do arquivo
+// GET /medico/documento/:id/pdf  — download direto
 // ─────────────────────────────────────────────────────────────
 export async function downloadPdf(req, res) {
   try {
     const doc = await Documento.findByPk(req.params.id);
     if (!doc) return res.status(404).json({ erro: 'Documento não encontrado.' });
     if (!doc.arquivoPdf) return res.status(404).json({ erro: 'PDF ainda não gerado.' });
+
+    // Somente o médico que criou pode baixar
+    if (doc.medicoId !== req.usuario?.id) {
+      return res.status(403).json({ erro: 'Acesso negado.' });
+    }
 
     const caminhoAbsoluto = path.resolve(__dirname, '../../..', doc.arquivoPdf);
     return res.download(caminhoAbsoluto);
