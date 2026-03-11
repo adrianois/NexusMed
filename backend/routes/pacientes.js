@@ -6,6 +6,20 @@ import { registrarLog } from '../lib/log.js'
 const router = Router()
 router.use(autenticar)
 
+// Apenas campos que existem na tabela pacientes
+function sanitizar(body) {
+  const campos = [
+    'nome', 'cpf', 'data_nascimento', 'telefone', 'email',
+    'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'cidade', 'estado',
+    'plano_saude', 'observacoes'
+  ]
+  const obj = {}
+  for (const c of campos) {
+    if (body[c] !== undefined) obj[c] = body[c] || null
+  }
+  return obj
+}
+
 router.get('/', async (req, res) => {
   const { perfil, clinica_id } = req.usuario
   let q = supabase.from('pacientes').select('*').order('nome')
@@ -16,18 +30,24 @@ router.get('/', async (req, res) => {
 })
 
 router.post('/', async (req, res) => {
-  const { data, error } = await supabase.from('pacientes')
-    .insert([{ ...req.body, clinica_id: req.usuario.clinica_id }])
-    .select()
+  const payload = { ...sanitizar(req.body), clinica_id: req.usuario.clinica_id }
+  const { data, error } = await supabase.from('pacientes').insert([payload]).select()
   if (error) return res.status(400).json({ error: error.message })
-  await registrarLog({ usuario: req.usuario, acao: 'criar', tabela: 'pacientes', registro_id: data[0].id, detalhes: { nome: req.body.nome, cpf: req.body.cpf } })
+  await registrarLog({
+    usuario: req.usuario, acao: 'criar', tabela: 'pacientes',
+    registro_id: data[0].id, detalhes: { nome: req.body.nome, cpf: req.body.cpf }
+  })
   res.status(201).json(data[0])
 })
 
 router.put('/:id', async (req, res) => {
-  const { data, error } = await supabase.from('pacientes').update(req.body).eq('id', req.params.id).select()
+  const payload = sanitizar(req.body)
+  const { data, error } = await supabase.from('pacientes').update(payload).eq('id', req.params.id).select()
   if (error) return res.status(400).json({ error: error.message })
-  await registrarLog({ usuario: req.usuario, acao: 'editar', tabela: 'pacientes', registro_id: req.params.id, detalhes: { nome: req.body.nome } })
+  await registrarLog({
+    usuario: req.usuario, acao: 'editar', tabela: 'pacientes',
+    registro_id: req.params.id, detalhes: { nome: req.body.nome }
+  })
   res.json(data[0])
 })
 
