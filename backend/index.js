@@ -7,6 +7,7 @@ import bodyParser from 'body-parser'
 import authRoutes        from './routes/auth.js'
 import adminRoutes       from './routes/admin.js'
 import gestorRoutes      from './routes/gestor.js'
+import medicoRoutes      from './routes/medico.js'
 import medicosRoutes     from './routes/medicos.js'
 import pacientesRoutes   from './routes/pacientes.js'
 import consultasRoutes   from './routes/consultas.js'
@@ -52,6 +53,7 @@ app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date()
 app.use('/auth',        authRoutes)
 app.use('/admin',       adminRoutes)
 app.use('/gestor',      gestorRoutes)
+app.use('/medico',      medicoRoutes)
 app.use('/medicos',     medicosRoutes)
 app.use('/pacientes',   pacientesRoutes)
 app.use('/consultas',   consultasRoutes)

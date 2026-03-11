@@ -28,6 +28,15 @@ import GestorUsuarios    from './pages/gestor/GestorUsuarios'
 import GestorTrocarSenha from './pages/gestor/GestorTrocarSenha'
 import GestorLogs        from './pages/gestor/GestorLogs'
 
+import MedicoDashboard  from './pages/medico/MedicoDashboard'
+import MedicoAgenda     from './pages/medico/MedicoAgenda'
+import MedicoTriagem    from './pages/medico/MedicoTriagem'
+import MedicoAtendimento from './pages/medico/MedicoAtendimento'
+import MedicoHistorico  from './pages/medico/MedicoHistorico'
+
+const TODOS   = ['normal','gestor','admin','medico']
+const MEDICO  = ['medico','gestor','admin']
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -48,7 +57,7 @@ export default function App() {
           <Route path='/consultas'    element={<PrivateRoute perfis={['normal','gestor','admin']}><Consultas /></PrivateRoute>} />
           <Route path='/prontuarios'  element={<PrivateRoute perfis={['normal','gestor','admin']}><Prontuarios /></PrivateRoute>} />
           <Route path='/medicos'      element={<PrivateRoute perfis={['normal','gestor','admin']}><Medicos /></PrivateRoute>} />
-          <Route path='/minha-senha'  element={<PrivateRoute perfis={['normal','gestor','admin']}><MinhaSenha /></PrivateRoute>} />
+          <Route path='/minha-senha'  element={<PrivateRoute perfis={TODOS}><MinhaSenha /></PrivateRoute>} />
           <Route path='/triagem'      element={<PrivateRoute perfis={['normal','gestor','admin']}><Triagem /></PrivateRoute>} />
 
           {/* Admin */}
@@ -63,6 +72,13 @@ export default function App() {
           <Route path='/gestor/usuarios'      element={<PrivateRoute perfis={['gestor','admin']}><GestorUsuarios /></PrivateRoute>} />
           <Route path='/gestor/trocar-senha'  element={<PrivateRoute perfis={['gestor']}><GestorTrocarSenha /></PrivateRoute>} />
           <Route path='/gestor/logs'          element={<PrivateRoute perfis={['gestor','admin']}><GestorLogs /></PrivateRoute>} />
+
+          {/* ─── Módulo Médico ─────────────────────────────────────── */}
+          <Route path='/medico'                        element={<PrivateRoute perfis={MEDICO}><MedicoDashboard /></PrivateRoute>} />
+          <Route path='/medico/agenda'                 element={<PrivateRoute perfis={MEDICO}><MedicoAgenda /></PrivateRoute>} />
+          <Route path='/medico/triagem'                element={<PrivateRoute perfis={MEDICO}><MedicoTriagem /></PrivateRoute>} />
+          <Route path='/medico/atendimento/:consulta_id' element={<PrivateRoute perfis={MEDICO}><MedicoAtendimento /></PrivateRoute>} />
+          <Route path='/medico/historico'              element={<PrivateRoute perfis={MEDICO}><MedicoHistorico /></PrivateRoute>} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
