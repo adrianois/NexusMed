@@ -1,146 +1,125 @@
+/**
+ * /retornos — Painel de acompanhamento de retornos médicos
+ *
+ * Lógica: quando o médico finaliza um atendimento e preenche
+ * "retorno_dias", esse endpoint lista esses prontuários calculando
+ * a data prevista do retorno e verificando se já existe nova consulta
+ * agendada para o paciente após aquela data.
+ */
 import { Router } from 'express'
 import { supabase } from '../lib/supabase.js'
 import { autenticar } from '../lib/auth.js'
-import { normalizarData } from '../lib/utils.js'
-import { registrarLog } from '../lib/log.js'
 
 const router = Router()
 router.use(autenticar)
 
-// ─── GET / ─── lista retornos com filtros opcionais
+/**
+ * GET /retornos
+ * Query params opcionais:
+ *   - status: 'pendente' | 'atrasado' | 'agendado'
+ *   - busca:  texto para filtrar por nome do paciente
+ */
 router.get('/', async (req, res) => {
-  const { perfil, clinica_id } = req.usuario
-  const { status, paciente_id, data_inicio, data_fim } = req.query
+  try {
+    const { clinica_id, perfil } = req.usuario
+    const { status: filtroStatus, busca } = req.query
 
-  let q = supabase
-    .from('retornos')
-    .select(`
-      *,
-      pacientes (id, nome),
-      consultas (id, data_consulta, motivo),
-      usuarios:medico_id (id, nome)
-    `)
-    .order('data_retorno', { ascending: true })
+    // 1. Busca prontuários que têm retorno_dias preenchido
+    let qPront = supabase
+      .from('prontuarios')
+      .select(`
+        id,
+        consulta_id,
+        paciente_id,
+        medico_id,
+        diagnostico,
+        retorno_dias,
+        data_atendimento,
+        consultas (id, data_consulta, motivo, horario),
+        pacientes (id, nome, telefone),
+        medicos   (id, nome, especialidade)
+      `)
+      .not('retorno_dias', 'is', null)
+      .gt('retorno_dias', 0)
+      .order('data_atendimento', { ascending: false })
 
-  if (perfil !== 'admin' && clinica_id) q = q.eq('clinica_id', clinica_id)
-  if (status)      q = q.eq('status', status)
-  if (paciente_id) q = q.eq('paciente_id', paciente_id)
-  if (data_inicio)  q = q.gte('data_retorno', data_inicio)
-  if (data_fim)     q = q.lte('data_retorno', data_fim)
+    if (perfil !== 'admin' && clinica_id)
+      qPront = qPront.eq('clinica_id', clinica_id)
 
-  const { data, error } = await q
-  if (error) return res.status(500).json({ error: error.message })
-  res.json(
-    (data || []).map(r => ({ ...r, data_retorno: normalizarData(r.data_retorno) }))
-  )
-})
+    const { data: prontuarios, error: ep } = await qPront
+    if (ep) return res.status(500).json({ error: ep.message })
 
-// ─── GET /:id ─── busca retorno por id
-router.get('/:id', async (req, res) => {
-  const { data, error } = await supabase
-    .from('retornos')
-    .select(`
-      *,
-      pacientes (id, nome),
-      consultas (id, data_consulta, motivo),
-      usuarios:medico_id (id, nome)
-    `)
-    .eq('id', req.params.id)
-    .limit(1)
-  if (error) return res.status(500).json({ error: error.message })
-  if (!data?.length) return res.status(404).json({ error: 'Retorno não encontrado.' })
-  const r = data[0]
-  res.json({ ...r, data_retorno: normalizarData(r.data_retorno) })
-})
+    // 2. Para cada prontuário, calcula a data prevista do retorno
+    //    e verifica se já existe nova consulta agendada para o paciente
+    const hoje = new Date()
+    hoje.setHours(0, 0, 0, 0)
 
-// ─── POST / ─── criar retorno
-router.post('/', async (req, res) => {
-  const { consulta_id, paciente_id, medico_id, data_retorno, motivo, observacoes } = req.body
-  if (!paciente_id || !data_retorno || !motivo)
-    return res.status(400).json({ error: 'Paciente, data de retorno e motivo são obrigatórios.' })
+    const resultado = await Promise.all(
+      (prontuarios || []).map(async (p) => {
+        const dataAtendimento = new Date(p.data_atendimento + 'T12:00:00')
+        const dataPrevista    = new Date(dataAtendimento)
+        dataPrevista.setDate(dataPrevista.getDate() + Number(p.retorno_dias))
 
-  const { data, error } = await supabase
-    .from('retornos')
-    .insert([{
-      consulta_id: consulta_id || null,
-      paciente_id,
-      medico_id: medico_id || null,
-      data_retorno: normalizarData(data_retorno),
-      motivo,
-      observacoes: observacoes || null,
-      status: 'pendente',
-      clinica_id: req.usuario.clinica_id,
-    }])
-    .select()
+        const dataPrevistaStr = dataPrevista.toISOString().split('T')[0]
 
-  if (error) return res.status(400).json({ error: error.message })
-  await registrarLog({
-    usuario: req.usuario, acao: 'criar', tabela: 'retornos',
-    registro_id: data[0].id,
-    detalhes: { paciente_id, medico_id, data_retorno, motivo },
-  })
-  res.status(201).json({ ...data[0], data_retorno: normalizarData(data[0].data_retorno) })
-})
+        // Verifica se já há consulta posterior ao atendimento original
+        let { data: novaConsulta } = await supabase
+          .from('consultas')
+          .select('id, data_consulta, status')
+          .eq('paciente_id', p.paciente_id)
+          .gt('data_consulta', p.data_atendimento)
+          .neq('id', p.consulta_id)
+          .in('status', ['agendada', 'confirmada', 'em_triagem', 'triado', 'liberada'])
+          .order('data_consulta', { ascending: true })
+          .limit(1)
 
-// ─── PUT /:id ─── atualizar retorno
-router.put('/:id', async (req, res) => {
-  const { consulta_id, paciente_id, medico_id, data_retorno, motivo, observacoes } = req.body
-  const { data, error } = await supabase
-    .from('retornos')
-    .update({
-      consulta_id: consulta_id || null,
-      paciente_id,
-      medico_id: medico_id || null,
-      data_retorno: normalizarData(data_retorno),
-      motivo,
-      observacoes: observacoes || null,
-    })
-    .eq('id', req.params.id)
-    .select()
+        const jaAgendado = novaConsulta && novaConsulta.length > 0
 
-  if (error) return res.status(400).json({ error: error.message })
-  if (!data?.length) return res.status(404).json({ error: 'Retorno não encontrado.' })
-  await registrarLog({
-    usuario: req.usuario, acao: 'editar', tabela: 'retornos',
-    registro_id: req.params.id,
-    detalhes: { data_retorno, motivo },
-  })
-  res.json({ ...data[0], data_retorno: normalizarData(data[0].data_retorno) })
-})
+        // Calcula status automático
+        let statusRetorno
+        if (jaAgendado) {
+          statusRetorno = 'agendado'
+        } else if (dataPrevista < hoje) {
+          statusRetorno = 'atrasado'
+        } else {
+          statusRetorno = 'pendente'
+        }
 
-// ─── PATCH /:id/status ─── atualizar status
-router.patch('/:id/status', async (req, res) => {
-  const { status } = req.body
-  const statusValidos = ['pendente', 'agendado', 'realizado', 'cancelado']
-  if (!statusValidos.includes(status))
-    return res.status(400).json({ error: `Status inválido. Use: ${statusValidos.join(', ')}` })
+        // Aplica filtro de status se informado
+        if (filtroStatus && statusRetorno !== filtroStatus) return null
 
-  const { data: anterior } = await supabase
-    .from('retornos').select('status').eq('id', req.params.id).limit(1)
+        // Aplica filtro de busca por nome do paciente
+        if (busca) {
+          const nome = p.pacientes?.nome || ''
+          if (!nome.toLowerCase().includes(busca.toLowerCase())) return null
+        }
 
-  const { data, error } = await supabase
-    .from('retornos').update({ status }).eq('id', req.params.id).select()
+        return {
+          prontuario_id:   p.id,
+          consulta_id:     p.consulta_id,
+          paciente_id:     p.paciente_id,
+          paciente_nome:   p.pacientes?.nome      || '—',
+          paciente_tel:    p.pacientes?.telefone   || null,
+          medico_nome:     p.medicos?.nome         || '—',
+          especialidade:   p.medicos?.especialidade || null,
+          diagnostico:     p.diagnostico            || null,
+          data_atendimento: p.data_atendimento,
+          retorno_dias:    p.retorno_dias,
+          data_prevista:   dataPrevistaStr,
+          status:          statusRetorno,
+          nova_consulta:   jaAgendado ? novaConsulta[0] : null,
+          motivo_original: p.consultas?.motivo || null,
+        }
+      })
+    )
 
-  if (error) return res.status(400).json({ error: error.message })
-  if (!data?.length) return res.status(404).json({ error: 'Retorno não encontrado.' })
+    // Remove os nulos (filtrados)
+    const filtrados = resultado.filter(Boolean)
 
-  await registrarLog({
-    usuario: req.usuario, acao: 'status', tabela: 'retornos',
-    registro_id: req.params.id,
-    detalhes: { de: anterior?.[0]?.status, para: status },
-  })
-  res.json({ ...data[0], data_retorno: normalizarData(data[0].data_retorno) })
-})
-
-// ─── DELETE /:id ─── excluir retorno
-router.delete('/:id', async (req, res) => {
-  const { error } = await supabase.from('retornos').delete().eq('id', req.params.id)
-  if (error) return res.status(400).json({ error: error.message })
-  await registrarLog({
-    usuario: req.usuario, acao: 'excluir', tabela: 'retornos',
-    registro_id: req.params.id,
-  })
-  res.json({ message: 'Retorno removido com sucesso.' })
+    res.json(filtrados)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
 })
 
 export default router
