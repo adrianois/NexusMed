@@ -14,13 +14,13 @@ import prontuariosRoutes from './routes/prontuarios.js'
 import clinicasRoutes    from './routes/clinicas.js'
 import logsRoutes        from './routes/logs.js'
 import usuariosRoutes    from './routes/usuarios.js'
+import triagemRoutes     from './routes/triagem.js'
 
 const app  = express()
 const port = process.env.PORT || 4000
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Permite: sem origin (curl/postman), localhost, e dominios *.app.github.dev
     if (
       !origin ||
       origin.includes('localhost') ||
@@ -43,7 +43,7 @@ const corsOptions = {
 }
 
 app.use(cors(corsOptions))
-app.options('*', cors(corsOptions)) // preflight para todas as rotas
+app.options('*', cors(corsOptions))
 app.use(bodyParser.json())
 
 app.get('/',       (_req, res) => res.send('🚀 API NexusMed rodando!'))
@@ -59,5 +59,6 @@ app.use('/prontuarios', prontuariosRoutes)
 app.use('/clinicas',    clinicasRoutes)
 app.use('/logs',        logsRoutes)
 app.use('/usuarios',    usuariosRoutes)
+app.use('/triagem',     triagemRoutes)
 
 app.listen(port, () => console.log(`🚀 Servidor rodando na porta ${port}`))

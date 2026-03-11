@@ -4,7 +4,8 @@ import PageLayout from '../../components/PageLayout'
 
 const FORM_INICIAL = {
   nome: '', cnpj: '', telefone: '', email: '',
-  cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', estado: ''
+  cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', estado: '',
+  usa_triagem: false
 }
 
 export default function AdminClinicas() {
@@ -23,7 +24,7 @@ export default function AdminClinicas() {
   useEffect(() => { carregar() }, [])
 
   const handleChange = e =>
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
+    setForm(prev => ({ ...prev, [e.target.name]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
 
   const handleCep = async (e) => {
     const raw = e.target.value.replace(/\D/g, '')
@@ -51,7 +52,6 @@ export default function AdminClinicas() {
     e.preventDefault()
     if (!form.nome || !form.cnpj) return alert('Nome e CNPJ são obrigatórios!')
     setSalvando(true)
-    // Monta endereço legado como string para retrocompatibilidade
     const enderecoStr = [form.logradouro, form.numero, form.bairro, form.cidade, form.estado]
       .filter(Boolean).join(', ')
     try {
@@ -74,8 +74,17 @@ export default function AdminClinicas() {
     }
   }
 
+  const toggleTriagem = async (id, usa_triagem) => {
+    try {
+      await api.patch(`/admin/clinicas/${id}/triagem`, { usa_triagem: !usa_triagem })
+      carregar()
+    } catch (err) {
+      alert('Erro: ' + (err.response?.data?.error || err.message))
+    }
+  }
+
   return (
-    <PageLayout title='🏨 Gerenciar Clínicas'>
+    <PageLayout title='🏈 Gerenciar Clínicas'>
       <div className='inner-toolbar'>
         <button
           className={`btn ${mostrarForm ? 'btn-secondary' : 'btn-primary'}`}
@@ -90,7 +99,6 @@ export default function AdminClinicas() {
           <h3 className='inner-card-title'>Cadastrar Nova Clínica</h3>
           <form onSubmit={handleSubmit} className='inner-form'>
 
-            {/* Dados da clínica */}
             <div className='form-field form-field--full'>
               <label className='form-label'>Nome da Clínica <span className='required'>*</span></label>
               <input className='form-input' name='nome' value={form.nome} onChange={handleChange}
@@ -113,6 +121,23 @@ export default function AdminClinicas() {
               <label className='form-label'>Email da Clínica</label>
               <input className='form-input' type='email' name='email' value={form.email} onChange={handleChange}
                 placeholder='contato@clinica.com.br' />
+            </div>
+
+            {/* Triagem */}
+            <div className='form-field form-field--full'>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                <input
+                  type='checkbox' name='usa_triagem'
+                  checked={form.usa_triagem} onChange={handleChange}
+                  style={{ width: '18px', height: '18px', accentColor: '#3b82f6', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '0.9rem', color: '#e2e8f0', fontWeight: 500 }}>
+                  🩺 Esta clínica realiza <strong>triagem / pré-atendimento</strong>
+                </span>
+              </label>
+              <span style={{ fontSize: '0.75rem', color: '#475569', marginTop: '4px', marginLeft: '28px' }}>
+                Quando ativado, habilita a fila e o formulário de triagem para os usuários desta clínica.
+              </span>
             </div>
 
             {/* Endereço */}
@@ -187,9 +212,9 @@ export default function AdminClinicas() {
                 <th>Nome</th>
                 <th>CNPJ</th>
                 <th>Telefone</th>
-                <th>Endereço</th>
+                <th>Triagem</th>
                 <th>Status</th>
-                <th>Ação</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -201,8 +226,20 @@ export default function AdminClinicas() {
                   <td style={{fontWeight:600}}>{c.nome}</td>
                   <td style={{color:'#94a3b8',fontSize:'0.85rem'}}>{c.cnpj}</td>
                   <td>{c.telefone || '—'}</td>
-                  <td style={{fontSize:'0.82rem',color:'#94a3b8',maxWidth:'220px'}}>
-                    {c.endereco || '—'}
+                  <td>
+                    <button
+                      onClick={() => toggleTriagem(c.id, c.usa_triagem)}
+                      style={{
+                        background: c.usa_triagem ? 'rgba(34,197,94,0.12)' : 'rgba(100,116,139,0.1)',
+                        border: `1px solid ${c.usa_triagem ? 'rgba(34,197,94,0.3)' : 'rgba(100,116,139,0.2)'}`,
+                        color: c.usa_triagem ? '#4ade80' : '#64748b',
+                        borderRadius: '20px', padding: '3px 12px',
+                        fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {c.usa_triagem ? '🩺 Sim' : '— Não'}
+                    </button>
                   </td>
                   <td>
                     <span className={`badge badge-${c.ativo ? 'ativo' : 'inativo'}`}>

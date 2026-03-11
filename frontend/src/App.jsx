@@ -17,6 +17,7 @@ import Medicos     from './pages/Medicos'
 import MinhaSenha  from './pages/MinhaSenha'
 import Logs        from './pages/Logs'
 import Usuarios    from './pages/Usuarios'
+import Triagem     from './pages/Triagem'
 
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminClinicas  from './pages/admin/AdminClinicas'
@@ -32,7 +33,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* P\u00fablicas */}
+          {/* Públicas */}
           <Route path='/'                     element={<Login />} />
           <Route path='/login'                element={<Login />} />
           <Route path='/register'             element={<Register />} />
@@ -48,9 +49,7 @@ export default function App() {
           <Route path='/prontuarios'  element={<PrivateRoute perfis={['normal','gestor','admin']}><Prontuarios /></PrivateRoute>} />
           <Route path='/medicos'      element={<PrivateRoute perfis={['normal','gestor','admin']}><Medicos /></PrivateRoute>} />
           <Route path='/minha-senha'  element={<PrivateRoute perfis={['normal','gestor','admin']}><MinhaSenha /></PrivateRoute>} />
-
-          {/* Cl\u00ednicas */}
-          <Route path='/clinicas' element={<PrivateRoute perfis={['admin','gestor']}><AdminClinicas /></PrivateRoute>} />
+          <Route path='/triagem'      element={<PrivateRoute perfis={['normal','gestor','admin']}><Triagem /></PrivateRoute>} />
 
           {/* Admin */}
           <Route path='/admin'          element={<PrivateRoute perfis={['admin']}><AdminDashboard /></PrivateRoute>} />

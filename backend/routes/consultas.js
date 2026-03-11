@@ -46,7 +46,7 @@ router.put('/:id', async (req, res) => {
 
 router.patch('/:id/status', async (req, res) => {
   const { status } = req.body
-  const statusValidos = ['agendada', 'confirmada', 'liberada']
+  const statusValidos = ['agendada', 'confirmada', 'em_triagem', 'triado', 'liberada']
   if (!statusValidos.includes(status))
     return res.status(400).json({ error: `Status inválido. Use: ${statusValidos.join(', ')}` })
   const { data: anterior } = await supabase.from('consultas').select('status').eq('id', req.params.id).limit(1)
