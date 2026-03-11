@@ -192,18 +192,24 @@ router.post('/criar-usuario', async (req, res) => {
     if (!medico) return res.status(404).json({ error: 'Médico não encontrado.' })
     if (medico.usuario_id) return res.status(400).json({ error: 'Médico já possui usuário vinculado.' })
 
-    const hash = await bcrypt.hash(senha, 10)
+    // Verifica e-mail duplicado
+    const { data: emailEx } = await supabase.from('usuarios').select('id').eq('email', email).limit(1)
+    if (emailEx?.length > 0) return res.status(409).json({ error: 'E-mail já cadastrado.' })
+
+    const senha_hash = await bcrypt.hash(senha, 10)
+
+    // Usa os campos reais do schema: senha_hash, status, perfil
     const { data: usuario, error: eu } = await supabase.from('usuarios').insert([{
-      nome:      medico.nome,
+      nome:       medico.nome,
       email,
-      senha:     hash,
-      perfil:    'medico',
+      senha_hash,
+      perfil:     'medico',
       clinica_id: medico.clinica_id,
-      aprovado:  true,
-      ativo:     true,
+      status:     'ativo',   // status = 'ativo' | 'pendente' | 'inativo'
     }]).select().single()
     if (eu) return res.status(400).json({ error: eu.message })
 
+    // Vincula usuário ao médico
     await supabase.from('medicos').update({ usuario_id: usuario.id, email }).eq('id', medico_id)
 
     await registrarLog({
