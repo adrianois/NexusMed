@@ -12,7 +12,8 @@ export default function PageLayout({ children, title }) {
 
   useEffect(() => {
     const perfil = user?.perfil
-    if ((perfil === 'gestor' || perfil === 'normal') && user?.clinica_id) {
+    // Acessível para normal, gestor e admin após correção do backend
+    if (['gestor', 'normal', 'admin'].includes(perfil) && user?.clinica_id) {
       api.get('/gestor/minha-clinica')
         .then(r => {
           if (r.data?.nome)        setNomeClinica(r.data.nome)
@@ -29,56 +30,61 @@ export default function PageLayout({ children, title }) {
     }
   }, [user])
 
-  // ── Menus por perfil ────────────────────────────────────────────────
+  const perfil = user?.perfil
 
-  // Médico
+  // ── Médico ──────────────────────────────────────────────────────────────────
   const menuMedico = [
-    { to: '/medico',              icon: '🏥', label: 'Painel'       },
-    { to: '/medico/agenda',       icon: '📅', label: 'Agenda'       },
-    { to: '/medico/triagem',      icon: '🩺', label: 'Fila Triagem' },
-    { to: '/medico/historico',    icon: '📁', label: 'Histórico'    },
-    { to: '/medico/documentos',   icon: '📑', label: 'Documentos'   },
-    { to: '/minha-senha',         icon: '🔐', label: 'Minha Senha'  },
+    { to: '/medico',            icon: '🏥', label: 'Painel'       },
+    { to: '/medico/agenda',     icon: '📅', label: 'Agenda'       },
+    { to: '/medico/triagem',    icon: '🩺', label: 'Fila Triagem' },
+    { to: '/medico/historico',  icon: '📁', label: 'Histórico'    },
+    { to: '/medico/documentos', icon: '📑', label: 'Documentos'   },
+    { to: '/minha-senha',       icon: '🔐', label: 'Minha Senha'  },
   ]
 
-  // Admin — sem prontuários
+  // ── Admin ──────────────────────────────────────────────────────────────────
   const menuAdmin = [
-    { to: '/admin',          icon: '🛡️', label: 'Painel Admin'  },
-    { to: '/admin/clinicas', icon: '🏥', label: 'Clínicas'      },
-    { to: '/admin/usuarios', icon: '👤', label: 'Usuários'      },
-    { to: '/medicos',        icon: '👨‍⚕️', label: 'Médicos'     },
-    { to: '/pacientes',      icon: '👥', label: 'Pacientes'    },
-    { to: '/consultas',      icon: '📅', label: 'Consultas'    },
-    { to: '/triagem',        icon: '🩺', label: 'Triagem'      },
-    { to: '/logs',           icon: '📝', label: 'Logs'         },
-    { to: '/minha-senha',    icon: '🔐', label: 'Minha Senha'  },
+    { to: '/admin',             icon: '🛡️', label: 'Painel Admin'     },
+    { to: '/admin/clinicas',    icon: '🏥', label: 'Clínicas'         },
+    { to: '/admin/usuarios',    icon: '👤', label: 'Usuários'         },
+    { to: '/medicos',           icon: '👨‍⚕️', label: 'Médicos'          },
+    { to: '/pacientes',         icon: '👥', label: 'Pacientes'        },
+    { to: '/consultas',         icon: '📅', label: 'Consultas'        },
+    { to: '/triagem',           icon: '🩺', label: 'Triagem'          },
+    { to: '/pos-atendimento',   icon: '🏥', label: 'Pós-Atendimento'  },
+    { to: '/retornos',          icon: '🔄', label: 'Retornos'         },
+    { to: '/logs',              icon: '📝', label: 'Logs'             },
+    { to: '/minha-senha',       icon: '🔐', label: 'Minha Senha'      },
   ]
 
-  // Gestor — sem prontuários
+  // ── Gestor ──────────────────────────────────────────────────────────────────
   const menuGestorBase = [
     { to: '/gestor',              icon: '📊', label: 'Painel Gestor'    },
     { to: '/gestor/usuarios',     icon: '⏳', label: 'Aprovar Usuários' },
     { to: '/gestor/logs',         icon: '📝', label: 'Logs da Clínica'  },
     { to: '/gestor/trocar-senha', icon: '🔑', label: 'Gerenciar Senhas' },
-    { to: '/medicos',             icon: '👨‍⚕️', label: 'Médicos'         },
+    { to: '/medicos',             icon: '👨‍⚕️', label: 'Médicos'          },
     { to: '/pacientes',           icon: '👥', label: 'Pacientes'        },
     { to: '/consultas',           icon: '📅', label: 'Consultas'        },
+    { to: '/pos-atendimento',     icon: '🏥', label: 'Pós-Atendimento'  },
+    { to: '/retornos',            icon: '🔄', label: 'Retornos'         },
     { to: '/minha-senha',         icon: '🔐', label: 'Minha Senha'      },
   ]
 
-  // Normal (recepção/atendente) — sem prontuários
+  // ── Normal (recepção) ──────────────────────────────────────────────────────────
   const menuNormalBase = [
-    { to: '/dashboard',   icon: '🏠', label: 'Início'     },
-    { to: '/medicos',     icon: '👨‍⚕️', label: 'Médicos'   },
-    { to: '/pacientes',   icon: '👥', label: 'Pacientes' },
-    { to: '/consultas',   icon: '📅', label: 'Consultas' },
-    { to: '/minha-senha', icon: '🔐', label: 'Minha Senha' },
+    { to: '/dashboard',         icon: '🏠', label: 'Início'           },
+    { to: '/medicos',           icon: '👨‍⚕️', label: 'Médicos'          },
+    { to: '/pacientes',         icon: '👥', label: 'Pacientes'        },
+    { to: '/consultas',         icon: '📅', label: 'Consultas'        },
+    { to: '/pos-atendimento',   icon: '🏥', label: 'Pós-Atendimento'  },
+    { to: '/retornos',          icon: '🔄', label: 'Retornos'         },
+    { to: '/minha-senha',       icon: '🔐', label: 'Minha Senha'      },
   ]
 
-  const perfil = user?.perfil
-
+  // Insere Triagem dinamicamente conforme configuração da clínica
   const menuGestor = usaTriagem
-    ? [...menuGestorBase.slice(0, 4), { to: '/triagem', icon: '🩺', label: 'Triagem' }, ...menuGestorBase.slice(4)]
+    ? [...menuGestorBase.slice(0, 6), { to: '/triagem', icon: '🩺', label: 'Triagem' }, ...menuGestorBase.slice(6)]
     : menuGestorBase
 
   const menuNormalFinal = usaTriagem
@@ -86,9 +92,9 @@ export default function PageLayout({ children, title }) {
     : menuNormalBase
 
   const menu =
-    perfil === 'admin'  ? menuAdmin  :
-    perfil === 'gestor' ? menuGestor :
-    perfil === 'medico' ? menuMedico :
+    perfil === 'admin'  ? menuAdmin       :
+    perfil === 'gestor' ? menuGestor      :
+    perfil === 'medico' ? menuMedico      :
     menuNormalFinal
 
   const badgeColor =
@@ -109,7 +115,7 @@ export default function PageLayout({ children, title }) {
     perfil === 'medico' ? '/medico'   :
     '/dashboard'
 
-  const mostrarBannerClinica = (perfil === 'gestor' || perfil === 'normal') && user?.clinica_id
+  const mostrarBannerClinica = ['gestor', 'normal', 'admin'].includes(perfil) && user?.clinica_id
 
   return (
     <div className='layout'>
