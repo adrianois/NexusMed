@@ -3,7 +3,6 @@
  */
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
-import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '../lib/supabase.js'
 import { autenticar } from '../lib/auth.js'
 import { registrarLog } from '../lib/log.js'
@@ -267,7 +266,7 @@ router.post('/documento', async (req, res) => {
     const { data, error } = await supabase
       .from('documentos_medicos')
       .insert([{
-        id:          uuidv4(),
+        id:          crypto.randomUUID(),
         tipo,
         consulta_id,
         medico_id:   medicoId,
