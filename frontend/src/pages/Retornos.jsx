@@ -35,12 +35,20 @@ function diasRestantes(dataPrevista) {
   return                 { texto: `${diff}d`,                     cor: '#4ade80' }
 }
 
+// Formata data com segurança — retorna '—' se inválida
+function fmtData(str) {
+  if (!str) return '—'
+  const d = new Date(str.length === 10 ? str + 'T12:00:00' : str)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('pt-BR')
+}
+
 export default function Retornos() {
   const [retornos,     setRetornos]     = useState([])
   const [loading,      setLoading]      = useState(true)
   const [busca,        setBusca]        = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
-  const [modal,        setModal]        = useState(null) // { paciente_id, paciente_nome, motivo, retorno_dias }
+  const [modal,        setModal]        = useState(null)
   const { toast, ToastUI } = useToast()
 
   const carregar = async (params = {}) => {
@@ -79,7 +87,6 @@ export default function Retornos() {
     <PageLayout title='🔄 Retornos Médicos'>
       <ToastUI />
 
-      {/* Modal de agendamento */}
       <ModalAgendarRetorno
         aberto={!!modal}
         onFechar={() => setModal(null)}
@@ -160,6 +167,8 @@ export default function Retornos() {
               )}
               {retornos.map(r => {
                 const prazo = diasRestantes(r.data_prevista)
+                // Data da nova consulta agendada — usa nova_consulta.data_consulta ou nova_consulta_data como fallback
+                const dataNovaConsulta = r.nova_consulta?.data_consulta || r.nova_consulta_data || null
                 return (
                   <tr key={r.prontuario_id} style={{ background: r.status === 'atrasado' ? 'rgba(239,68,68,0.04)' : undefined }}>
                     <td>
@@ -171,15 +180,13 @@ export default function Retornos() {
                       {r.especialidade && <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{r.especialidade}</div>}
                     </td>
                     <td style={{ fontSize: '0.83rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>
-                      {r.data_atendimento ? new Date(r.data_atendimento + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
+                      {fmtData(r.data_atendimento)}
                       {r.motivo_original && (
                         <div style={{ fontSize: '0.7rem', color: '#475569', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.motivo_original}</div>
                       )}
                     </td>
                     <td style={{ textAlign: 'center', fontWeight: 700, color: '#a78bfa' }}>{r.retorno_dias}d</td>
-                    <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
-                      {r.data_prevista ? new Date(r.data_prevista + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
-                    </td>
+                    <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>{fmtData(r.data_prevista)}</td>
                     <td><span style={{ fontSize: '0.78rem', fontWeight: 700, color: prazo.cor }}>{prazo.texto}</span></td>
                     <td><BadgeStatus status={r.status} /></td>
                     <td>
@@ -193,7 +200,7 @@ export default function Retornos() {
                         </button>
                       ) : (
                         <span style={{ fontSize: '0.72rem', color: '#4ade80' }}>
-                          ✅ {r.nova_consulta ? new Date(r.nova_consulta.data_consulta + 'T12:00:00').toLocaleDateString('pt-BR') : 'Agendado'}
+                          ✅ {dataNovaConsulta ? fmtData(dataNovaConsulta) : 'Agendado'}
                         </span>
                       )}
                     </td>
