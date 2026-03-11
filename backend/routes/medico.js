@@ -19,11 +19,12 @@ router.use((req, res, next) => {
 
 async function getMedicoId(req) {
   if (req.usuario.perfil === 'medico') {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('medicos')
       .select('id')
       .eq('usuario_id', req.usuario.id)
-      .single()
+      .maybeSingle()
+    if (error) console.error('[getMedicoId] Supabase error:', error.message, '| usuario_id:', req.usuario.id)
     return data?.id || null
   }
   return req.query.medico_id || null
@@ -262,10 +263,12 @@ router.post('/documento', async (req, res) => {
     if (!dados || typeof dados !== 'object')
       return res.status(400).json({ error: 'Dados do documento são obrigatórios.' })
 
-    // Usa getMedicoId para resolver corretamente medicos.id a partir do usuario logado
     const medico_id = await getMedicoId(req)
     if (!medico_id)
-      return res.status(400).json({ error: 'Médico não encontrado para o usuário autenticado.' })
+      return res.status(400).json({
+        error: 'Médico não encontrado para o usuário autenticado.',
+        debug: { usuario_id: req.usuario.id, perfil: req.usuario.perfil },
+      })
 
     const { data, error } = await supabase
       .from('documentos_medicos')
