@@ -29,13 +29,13 @@ export default function PageLayout({ children, title }) {
     }
   }, [user])
 
-  const menuNormal = [
-    { to: '/dashboard',   icon: '🏠', label: 'Início'      },
-    { to: '/medicos',     icon: '👨‍⚕️', label: 'Médicos'    },
-    { to: '/pacientes',   icon: '👥', label: 'Pacientes'  },
-    { to: '/consultas',   icon: '📅', label: 'Consultas'  },
-    { to: '/prontuarios', icon: '📋', label: 'Prontuários'},
-    { to: '/minha-senha', icon: '🔐', label: 'Minha Senha'},
+  // ─── Menus por perfil ────────────────────────────────────────────────
+  const menuMedico = [
+    { to: '/medico',           icon: '🏥', label: 'Painel'       },
+    { to: '/medico/agenda',    icon: '📅', label: 'Agenda'       },
+    { to: '/medico/triagem',   icon: '🩺', label: 'Fila Triagem' },
+    { to: '/medico/historico', icon: '📋', label: 'Histórico'    },
+    { to: '/minha-senha',      icon: '🖐', label: 'Minha Senha' },
   ]
 
   const menuAdmin = [
@@ -48,7 +48,7 @@ export default function PageLayout({ children, title }) {
     { to: '/prontuarios',    icon: '📋', label: 'Prontuários' },
     { to: '/triagem',        icon: '🩺', label: 'Triagem'      },
     { to: '/logs',           icon: '📝', label: 'Logs'         },
-    { to: '/minha-senha',    icon: '🔐', label: 'Minha Senha' },
+    { to: '/minha-senha',    icon: '🖐', label: 'Minha Senha' },
   ]
 
   const menuGestorBase = [
@@ -60,7 +60,7 @@ export default function PageLayout({ children, title }) {
     { to: '/pacientes',           icon: '👥', label: 'Pacientes'       },
     { to: '/consultas',           icon: '📅', label: 'Consultas'       },
     { to: '/prontuarios',         icon: '📋', label: 'Prontuários'     },
-    { to: '/minha-senha',         icon: '🔐', label: 'Minha Senha'     },
+    { to: '/minha-senha',         icon: '🖐', label: 'Minha Senha'     },
   ]
 
   const menuNormalBase = [
@@ -69,12 +69,11 @@ export default function PageLayout({ children, title }) {
     { to: '/pacientes',   icon: '👥', label: 'Pacientes'  },
     { to: '/consultas',   icon: '📅', label: 'Consultas'  },
     { to: '/prontuarios', icon: '📋', label: 'Prontuários'},
-    { to: '/minha-senha', icon: '🔐', label: 'Minha Senha'},
+    { to: '/minha-senha', icon: '🖐', label: 'Minha Senha'},
   ]
 
   const perfil = user?.perfil
 
-  // Injeta item de Triagem dinamicamente se a clinica usa triagem
   const menuGestor = usaTriagem
     ? [...menuGestorBase.slice(0, 3), { to: '/triagem', icon: '🩺', label: 'Triagem' }, ...menuGestorBase.slice(3)]
     : menuGestorBase
@@ -83,11 +82,31 @@ export default function PageLayout({ children, title }) {
     ? [...menuNormalBase.slice(0, 4), { to: '/triagem', icon: '🩺', label: 'Triagem' }, ...menuNormalBase.slice(4)]
     : menuNormalBase
 
-  const menu = perfil === 'admin' ? menuAdmin : perfil === 'gestor' ? menuGestor : menuNormalFinal
+  // Seleciona menu correto por perfil (inclui medico)
+  const menu =
+    perfil === 'admin'  ? menuAdmin :
+    perfil === 'gestor' ? menuGestor :
+    perfil === 'medico' ? menuMedico :   // ← ADICIONADO
+    menuNormalFinal
 
-  const badgeColor = perfil === 'admin' ? '#e74c3c' : perfil === 'gestor' ? '#f39c12' : '#27ae60'
-  const badgeLabel = perfil === 'admin' ? 'Admin' : perfil === 'gestor' ? 'Gestor' : 'Usuário'
-  const homeRoute  = perfil === 'admin' ? '/admin' : perfil === 'gestor' ? '/gestor' : '/dashboard'
+  const badgeColor =
+    perfil === 'admin'  ? '#e74c3c' :
+    perfil === 'gestor' ? '#f39c12' :
+    perfil === 'medico' ? '#4ade80' :   // ← verde para médico
+    '#27ae60'
+
+  const badgeLabel =
+    perfil === 'admin'  ? 'Admin'  :
+    perfil === 'gestor' ? 'Gestor' :
+    perfil === 'medico' ? 'Médico' :  // ← ADICIONADO
+    'Usuário'
+
+  const homeRoute =
+    perfil === 'admin'  ? '/admin'    :
+    perfil === 'gestor' ? '/gestor'   :
+    perfil === 'medico' ? '/medico'   :  // ← ADICIONADO
+    '/dashboard'
+
   const mostrarBannerClinica = (perfil === 'gestor' || perfil === 'normal') && user?.clinica_id
 
   return (
@@ -113,7 +132,7 @@ export default function PageLayout({ children, title }) {
             <NavLink
               key={item.to}
               to={item.to}
-              end={['/dashboard', '/admin', '/gestor'].includes(item.to)}
+              end={['/dashboard', '/admin', '/gestor', '/medico'].includes(item.to)}
               className={({ isActive }) => 'sidebar-link' + (isActive ? ' active' : '')}
             >
               <span className='sidebar-icon'>{item.icon}</span>
