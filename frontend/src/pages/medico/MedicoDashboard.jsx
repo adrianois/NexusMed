@@ -12,8 +12,8 @@ const STATUS_CFG = {
 }
 
 export default function MedicoDashboard() {
-  const [dados,   setDados]   = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [dados,     setDados]     = useState(null)
+  const [loading,   setLoading]   = useState(true)
   const [pacientes, setPacientes] = useState([])
   const nav = useNavigate()
 
@@ -30,12 +30,19 @@ export default function MedicoDashboard() {
   const nomePaciente = id => pacientes.find(p => p.id === id)?.nome || '—'
 
   const cards = dados ? [
-    { label: 'Hoje',        value: dados.total_hoje,   color: '#60a5fa', icon: '📅' },
-    { label: 'Este Mês',    value: dados.total_mes,    color: '#a78bfa', icon: '📊' },
-    { label: 'Aguardando',  value: dados.aguardando,   color: '#fbbf24', icon: '⏳' },
-    { label: 'Em Andamento',value: dados.em_andamento, color: '#fb923c', icon: '🩺' },
-    { label: 'Finalizados', value: dados.finalizados,  color: '#4ade80', icon: '✅' },
+    { label: 'Hoje',         value: dados.total_hoje,    color: '#60a5fa', icon: '📅' },
+    { label: 'Este Mês',     value: dados.total_mes,     color: '#a78bfa', icon: '📊' },
+    { label: 'Aguardando',   value: dados.aguardando,    color: '#fbbf24', icon: '⏳' },
+    { label: 'Em Andamento', value: dados.em_andamento,  color: '#fb923c', icon: '🩺' },
+    { label: 'Finalizados',  value: dados.finalizados,   color: '#4ade80', icon: '✅' },
   ] : []
+
+  // Atalhos rápidos exclusivos do módulo médico
+  const atalhos = [
+    { icon: '📅', label: 'Agenda',    path: '/medico/agenda',    color: '#60a5fa' },
+    { icon: '🔔', label: 'Triagem',   path: '/medico/triagem',   color: '#a78bfa' },
+    { icon: '📁', label: 'Histórico',  path: '/medico/historico', color: '#4ade80' },
+  ]
 
   return (
     <PageLayout title='🩺 Meu Painel'>
@@ -43,8 +50,8 @@ export default function MedicoDashboard() {
 
       {!loading && dados && (
         <>
-          {/* Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: '12px', marginBottom: '28px' }}>
+          {/* ─ Cards de estatística ─ */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: '12px', marginBottom: '20px' }}>
             {cards.map(c => (
               <div key={c.label} style={{
                 background: 'linear-gradient(145deg,#111827,#0f172a)',
@@ -59,18 +66,39 @@ export default function MedicoDashboard() {
             ))}
           </div>
 
-          {/* Próximos pacientes do dia */}
+          {/* ─ Atalhos rápidos ─ */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '10px', marginBottom: '24px' }}>
+            {atalhos.map(a => (
+              <div key={a.path} onClick={() => nav(a.path)} style={{
+                background: 'linear-gradient(145deg,#111827,#0f172a)',
+                border: `1px solid ${a.color}22`,
+                borderRadius: '12px', padding: '14px',
+                cursor: 'pointer', textAlign: 'center',
+                transition: 'border-color 0.15s, background 0.15s',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = `${a.color}66`; e.currentTarget.style.background = `${a.color}08` }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = `${a.color}22`; e.currentTarget.style.background = 'linear-gradient(145deg,#111827,#0f172a)' }}
+              >
+                <div style={{ fontSize: '1.5rem', marginBottom: '6px' }}>{a.icon}</div>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: a.color }}>{a.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* ─ Próximos pacientes do dia ─ */}
           <div style={{
             background: 'linear-gradient(145deg,#111827,#0f172a)',
             border: '1px solid rgba(255,255,255,0.07)',
             borderRadius: '16px', padding: '22px',
           }}>
             <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '16px', paddingBottom: '10px', borderBottom: '1px solid rgba(96,165,250,0.15)' }}>
-              📋 Próximos Pacientes — Hoje
+              👥 Próximos Pacientes — Hoje
             </div>
+
             {dados.proximas.length === 0 && (
               <p style={{ color: '#475569', fontSize: '0.88rem', textAlign: 'center', padding: '16px 0' }}>Nenhum paciente agendado para hoje.</p>
             )}
+
             {dados.proximas.map(c => {
               const scfg = STATUS_CFG[c.status] || STATUS_CFG.confirmada
               return (
@@ -100,10 +128,6 @@ export default function MedicoDashboard() {
                 </div>
               )
             })}
-            <div style={{ marginTop: '16px', display: 'flex', gap: '10px' }}>
-              <button className='btn btn-secondary' style={{ fontSize: '0.84rem' }} onClick={() => nav('/medico/agenda')}>📅 Ver Agenda</button>
-              <button className='btn btn-secondary' style={{ fontSize: '0.84rem' }} onClick={() => nav('/medico/triagem')}>🩺 Fila de Triagem</button>
-            </div>
           </div>
         </>
       )}
