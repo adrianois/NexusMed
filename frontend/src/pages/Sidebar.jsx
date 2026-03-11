@@ -60,22 +60,27 @@ export default function Sidebar({ onClose }) {
           </>
         )}
 
-        {/* ── Módulos outros perfis ───────────────── */}
-        {perfil !== 'medico' && (
+        {/* ── Perfil normal (recepção/atendente) ─────── */}
+        {perfil === 'normal' && (
+          <>
+            <SEP label='Geral' />
+            <ITEM to='/dashboard' icon='📊' label='Dashboard'  />
+            <ITEM to='/pacientes' icon='👥' label='Pacientes'  />
+            <ITEM to='/consultas' icon='📅' label='Consultas'  />
+            <ITEM to='/medicos'   icon='👨‍⚕️' label='Médicos'   />
+            <ITEM to='/triagem'   icon='🩺' label='Triagem'    />
+          </>
+        )}
+
+        {/* ── Gestor ───────────────────────────────── */}
+        {['gestor', 'admin'].includes(perfil) && perfil !== 'admin' && (
           <>
             <SEP label='Geral' />
             <ITEM to='/dashboard'   icon='📊' label='Dashboard'   />
             <ITEM to='/pacientes'   icon='👥' label='Pacientes'   />
             <ITEM to='/consultas'   icon='📅' label='Consultas'   />
-            <ITEM to='/prontuarios' icon='📋' label='Prontuários' />
             <ITEM to='/medicos'     icon='👨‍⚕️' label='Médicos'    />
             <ITEM to='/triagem'     icon='🩺' label='Triagem'     />
-          </>
-        )}
-
-        {/* ── Gestor ───────────────────────────────── */}
-        {['gestor','admin'].includes(perfil) && (
-          <>
             <SEP label='Gestão' />
             <ITEM to='/gestor'          icon='📊' label='Painel Gestor'  />
             <ITEM to='/gestor/usuarios' icon='👤' label='Usuários'        />
@@ -86,6 +91,16 @@ export default function Sidebar({ onClose }) {
         {/* ── Admin ────────────────────────────────── */}
         {perfil === 'admin' && (
           <>
+            <SEP label='Geral' />
+            <ITEM to='/dashboard'   icon='📊' label='Dashboard'   />
+            <ITEM to='/pacientes'   icon='👥' label='Pacientes'   />
+            <ITEM to='/consultas'   icon='📅' label='Consultas'   />
+            <ITEM to='/medicos'     icon='👨‍⚕️' label='Médicos'    />
+            <ITEM to='/triagem'     icon='🩺' label='Triagem'     />
+            <SEP label='Gestão' />
+            <ITEM to='/gestor'          icon='📊' label='Painel Gestor'  />
+            <ITEM to='/gestor/usuarios' icon='👤' label='Usuários'        />
+            <ITEM to='/gestor/logs'     icon='📝' label='Logs'            />
             <SEP label='Admin' />
             <ITEM to='/admin'          icon='⚙️' label='Painel Admin'  />
             <ITEM to='/admin/clinicas' icon='🏥' label='Clínicas'      />
@@ -93,6 +108,12 @@ export default function Sidebar({ onClose }) {
             <ITEM to='/logs'           icon='📝' label='Logs'          />
           </>
         )}
+
+        {/* Minha Senha — todos exceto médico (médico já tem no bloco dele) */}
+        {perfil !== 'medico' && (
+          <ITEM to='/minha-senha' icon='🔒' label='Minha Senha' />
+        )}
+
       </div>
 
       {/* Logout */}
