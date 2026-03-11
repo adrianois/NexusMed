@@ -1,5 +1,6 @@
 /**
- * /pdf — Geração e visualização de PDF de documentos médicos
+ * /pdf — Geração de PDF de documentos médicos
+ * Usa bufferPages para escrever o rodapé na última página após o conteúdo.
  */
 import { Router } from 'express'
 import PDFDocument from 'pdfkit'
@@ -41,46 +42,18 @@ const CAMPOS_LABEL = {
   assinatura_digital: 'Assinatura Digital',
 }
 
-const RODAPE_ALTURA = 30  // altura reservada para o rodapé
-const MARGEM_BOTTOM = 60  // margem inferior da página
-
-function desenharRodape(pdf, dataFormatada, id) {
-  const pageHeight = pdf.page.height
-  const rodapeY    = pageHeight - MARGEM_BOTTOM
-
-  // Só usa posição absoluta se o cursor ainda não chegou na área do rodapé
-  // Caso contrário, adiciona logo após o conteúdo atual (sem criar nova página)
-  const y = pdf.y + RODAPE_ALTURA <= rodapeY ? rodapeY : pdf.y + 8
-
-  pdf
-    .fontSize(8)
-    .fillColor('#94a3b8')
-    .text(
-      `Documento gerado em ${dataFormatada} pelo sistema NexusMed — ID: ${id}`,
-      60, y,
-      { align: 'center', width: 475, lineBreak: false }
-    )
-}
-
 // GET /pdf/documento/:id
 router.get('/documento/:id', async (req, res) => {
   try {
     const { id } = req.params
 
     const { data: doc, error: e1 } = await supabase
-      .from('documentos_medicos')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle()
-
+      .from('documentos_medicos').select('*').eq('id', id).maybeSingle()
     if (e1)   return res.status(500).json({ error: e1.message })
     if (!doc) return res.status(404).json({ error: 'Documento não encontrado.' })
 
     const { data: medico } = await supabase
-      .from('medicos')
-      .select('nome, crm, especialidade')
-      .eq('id', doc.medico_id)
-      .maybeSingle()
+      .from('medicos').select('nome, crm, especialidade').eq('id', doc.medico_id).maybeSingle()
 
     let pacienteNome = doc.dados?.paciente || doc.dados?.paciente_nome || null
     if (!pacienteNome && doc.consulta_id) {
@@ -97,39 +70,28 @@ router.get('/documento/:id', async (req, res) => {
     const dataDoc = new Date(doc['createdAt'] || Date.now())
     const dataFormatada = dataDoc.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
 
-    // O bottomMargin reserva espaço fixo no fundo — o pdfkit nunca escreve abaixo disso
-    // Assim o rodapé sempre cabe na área reservada sem criar nova página
-    const pdf = new PDFDocument({
-      margin: 60,
-      size: 'A4',
-      bufferPages: true,
-      margins: { top: 60, left: 60, right: 60, bottom: MARGEM_BOTTOM + RODAPE_ALTURA },
-    })
+    // bufferPages: true = guarda todas as páginas em memória antes de enviar
+    // Isso permite navegar entre páginas depois de finalizar o conteúdo
+    const pdf = new PDFDocument({ margin: 60, size: 'A4', bufferPages: true })
 
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `inline; filename="${doc.tipo}-${id.slice(0,8)}.pdf"`)
     pdf.pipe(res)
 
-    // ── Cabeçalho ─────────────────────────────────────────────────────────
+    // ── Cabeçalho ───────────────────────────────────────────────────────────
     pdf
-      .fontSize(20).fillColor('#1351B4')
-      .text('NexusMed', { align: 'center' })
-      .fontSize(10).fillColor('#64748b')
-      .text('Sistema de Gestão de Clínicas', { align: 'center' })
+      .fontSize(20).fillColor('#1351B4').text('NexusMed', { align: 'center' })
+      .fontSize(10).fillColor('#64748b').text('Sistema de Gestão de Clínicas', { align: 'center' })
       .moveDown(0.5)
-
-    pdf
-      .moveTo(60, pdf.y).lineTo(535, pdf.y)
-      .strokeColor('#1351B4').lineWidth(2).stroke()
+      .moveTo(60, pdf.y).lineTo(535, pdf.y).strokeColor('#1351B4').lineWidth(2).stroke()
       .moveDown(0.8)
 
-    // ── Título ────────────────────────────────────────────────────────────────
+    // ── Título ─────────────────────────────────────────────────────────────────
     pdf
-      .fontSize(16).fillColor('#0f172a')
-      .text(titulo.toUpperCase(), { align: 'center' })
+      .fontSize(16).fillColor('#0f172a').text(titulo.toUpperCase(), { align: 'center' })
       .moveDown(1)
 
-    // ── Data + Médico + Paciente ────────────────────────────────────────────
+    // ── Data, médico, paciente ──────────────────────────────────────────────
     pdf.fontSize(10).fillColor('#475569').text(`Data: ${dataFormatada}`, { align: 'right' }).moveDown(0.5)
 
     if (medico) {
@@ -147,11 +109,10 @@ router.get('/documento/:id', async (req, res) => {
     }
 
     pdf
-      .moveTo(60, pdf.y).lineTo(535, pdf.y)
-      .strokeColor('#e2e8f0').lineWidth(1).stroke()
+      .moveTo(60, pdf.y).lineTo(535, pdf.y).strokeColor('#e2e8f0').lineWidth(1).stroke()
       .moveDown(0.8)
 
-    // ── Corpo (campos) ───────────────────────────────────────────────────
+    // ── Campos do documento ───────────────────────────────────────────────
     const dados = doc.dados || {}
     const camposIgnorar = ['paciente', 'paciente_nome', 'assinatura_digital']
 
@@ -164,33 +125,49 @@ router.get('/documento/:id', async (req, res) => {
         .moveDown(0.4)
     })
 
-    pdf.moveDown(1)
-
     // ── Assinatura ───────────────────────────────────────────────────────────
+    pdf.moveDown(1.5)
+
     if (doc.status === 'assinado') {
       pdf
-        .moveTo(60, pdf.y).lineTo(535, pdf.y)
-        .strokeColor('#e2e8f0').lineWidth(1).stroke()
+        .moveTo(60, pdf.y).lineTo(535, pdf.y).strokeColor('#e2e8f0').lineWidth(1).stroke()
         .moveDown(0.6)
         .fontSize(9).fillColor('#4ade80')
         .text('✓ Documento assinado digitalmente via GOV.BR', { align: 'center' })
       if (doc.hash_documento) {
-        pdf.fontSize(8).fillColor('#64748b')
-          .text(`Hash: ${doc.hash_documento}`, { align: 'center' })
+        pdf.fontSize(8).fillColor('#64748b').text(`Hash: ${doc.hash_documento}`, { align: 'center' })
       }
     } else {
+      // Linha de assinatura — sem moveDown excessivo para não criar página extra
       pdf
-        .moveDown(3)
-        .moveTo(200, pdf.y).lineTo(400, pdf.y)
-        .strokeColor('#334155').lineWidth(1).stroke()
+        .moveTo(200, pdf.y).lineTo(400, pdf.y).strokeColor('#334155').lineWidth(1).stroke()
         .moveDown(0.3)
         .fontSize(9).fillColor('#64748b')
         .text(medico ? `Dr(a). ${medico.nome}` : 'Assinatura do Médico', { align: 'center' })
       if (medico?.crm) pdf.text(`CRM: ${medico.crm}`, { align: 'center' })
     }
 
-    // ── Rodapé — sempre na mesma página do conteúdo ─────────────────────────
-    desenharRodape(pdf, dataFormatada, id)
+    // ── Rodapé — usando bufferPages para escrever na última página real ──────────
+    // Finalizamos o layout, depois navegamos para a última página e escrevemos
+    const totalPages = pdf.bufferedPageRange().count
+    // Vai para a última página gerada pelo conteúdo
+    pdf.switchToPage(totalPages - 1)
+
+    const pageHeight  = pdf.page.height
+    const margemBaixo = 50
+    const rodapeY     = pageHeight - margemBaixo
+
+    // Só escreve em posição absoluta no rodapé se o cursor ainda está acima
+    // Caso o conteúdo já tenha chegado lá, escreve imediatamente após
+    const y = pdf.y + 12 < rodapeY ? rodapeY : pdf.y + 8
+
+    pdf
+      .fontSize(8).fillColor('#94a3b8')
+      .text(
+        `Documento gerado em ${dataFormatada} pelo sistema NexusMed — ID: ${id}`,
+        60, y,
+        { align: 'center', width: 475, lineBreak: false }
+      )
 
     pdf.end()
   } catch (e) {
