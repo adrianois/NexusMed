@@ -15,7 +15,7 @@ function decodeToken(token) {
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
+  const [user, setUser]       = useState(null)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
@@ -31,13 +31,16 @@ export function AuthProvider({ children }) {
 
   const login = async (email, senha) => {
     const res = await api.post('/auth/login', { email, senha })
-    const { token, perfil, nome, clinica_id } = res.data
+    const { token, perfil } = res.data
     localStorage.setItem('token', token)
     const decoded = decodeToken(token)
     setUser(decoded)
-    if (perfil === 'admin') navigate('/admin')
+
+    // Redireciona cada perfil para seu módulo correto
+    if      (perfil === 'admin')  navigate('/admin')
     else if (perfil === 'gestor') navigate('/gestor')
-    else navigate('/dashboard')
+    else if (perfil === 'medico') navigate('/medico')   // ← CORRIGIDO
+    else                          navigate('/dashboard') // normal
   }
 
   const logout = () => {
