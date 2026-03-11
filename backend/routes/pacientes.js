@@ -20,6 +20,22 @@ function sanitizar(body) {
   return obj
 }
 
+// Traduz erros do Postgres para mensagens amigáveis
+function traduzirErro(error) {
+  const msg = error.message || ''
+  if (msg.includes('pacientes_cpf_key') || (msg.includes('unique') && msg.includes('cpf')))
+    return 'CPF já cadastrado. Verifique se o paciente já existe.'
+  if (msg.includes('pacientes_email_key') || (msg.includes('unique') && msg.includes('email')))
+    return 'E-mail já cadastrado para outro paciente.'
+  if (msg.includes('numero_carteirinha'))
+    return 'Coluna número_carteirinha não existe no banco. Execute o SQL de migração.'
+  if (msg.includes('observacoes'))
+    return 'Coluna observacoes não existe no banco. Execute o SQL de migração.'
+  if (msg.includes('plano_saude'))
+    return 'Coluna plano_saude não existe no banco. Execute o SQL de migração.'
+  return msg
+}
+
 router.get('/', async (req, res) => {
   const { perfil, clinica_id } = req.usuario
   let q = supabase.from('pacientes').select('*').order('nome')
@@ -30,9 +46,21 @@ router.get('/', async (req, res) => {
 })
 
 router.post('/', async (req, res) => {
+  // Verifica CPF duplicado antes de inserir
+  if (req.body.cpf) {
+    const cpfLimpo = req.body.cpf.replace(/\D/g, '')
+    const { data: existe } = await supabase
+      .from('pacientes')
+      .select('id, nome')
+      .or(`cpf.eq.${req.body.cpf},cpf.eq.${cpfLimpo}`)
+      .limit(1)
+    if (existe?.length > 0)
+      return res.status(409).json({ error: `CPF já cadastrado para o paciente "${existe[0].nome}".` })
+  }
+
   const payload = { ...sanitizar(req.body), clinica_id: req.usuario.clinica_id }
   const { data, error } = await supabase.from('pacientes').insert([payload]).select()
-  if (error) return res.status(400).json({ error: error.message })
+  if (error) return res.status(400).json({ error: traduzirErro(error) })
   await registrarLog({
     usuario: req.usuario, acao: 'criar', tabela: 'pacientes',
     registro_id: data[0].id, detalhes: { nome: req.body.nome, cpf: req.body.cpf }
@@ -41,9 +69,22 @@ router.post('/', async (req, res) => {
 })
 
 router.put('/:id', async (req, res) => {
+  // Verifica CPF duplicado em outro paciente
+  if (req.body.cpf) {
+    const cpfLimpo = req.body.cpf.replace(/\D/g, '')
+    const { data: existe } = await supabase
+      .from('pacientes')
+      .select('id, nome')
+      .or(`cpf.eq.${req.body.cpf},cpf.eq.${cpfLimpo}`)
+      .neq('id', req.params.id)
+      .limit(1)
+    if (existe?.length > 0)
+      return res.status(409).json({ error: `CPF já cadastrado para o paciente "${existe[0].nome}".` })
+  }
+
   const payload = sanitizar(req.body)
   const { data, error } = await supabase.from('pacientes').update(payload).eq('id', req.params.id).select()
-  if (error) return res.status(400).json({ error: error.message })
+  if (error) return res.status(400).json({ error: traduzirErro(error) })
   await registrarLog({
     usuario: req.usuario, acao: 'editar', tabela: 'pacientes',
     registro_id: req.params.id, detalhes: { nome: req.body.nome }
