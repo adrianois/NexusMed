@@ -70,6 +70,7 @@ export default function Sidebar({ onClose }) {
             <ITEM to='/consultas' icon='📅' label='Consultas'  />
             <ITEM to='/medicos'   icon='👨‍⚕️' label='Médicos'   />
             <ITEM to='/triagem'   icon='🩺' label='Triagem'    />
+            <ITEM to='/retornos'  icon='🔄' label='Retornos'   />
           </>
         )}
 
@@ -82,6 +83,7 @@ export default function Sidebar({ onClose }) {
             <ITEM to='/consultas'   icon='📅' label='Consultas'   />
             <ITEM to='/medicos'     icon='👨‍⚕️' label='Médicos'    />
             <ITEM to='/triagem'     icon='🩺' label='Triagem'     />
+            <ITEM to='/retornos'    icon='🔄' label='Retornos'    />
             <SEP label='Gestão' />
             <ITEM to='/gestor'          icon='📊' label='Painel Gestor'  />
             <ITEM to='/gestor/usuarios' icon='👤' label='Usuários'        />
@@ -98,6 +100,7 @@ export default function Sidebar({ onClose }) {
             <ITEM to='/consultas'   icon='📅' label='Consultas'   />
             <ITEM to='/medicos'     icon='👨‍⚕️' label='Médicos'    />
             <ITEM to='/triagem'     icon='🩺' label='Triagem'     />
+            <ITEM to='/retornos'    icon='🔄' label='Retornos'    />
             <SEP label='Gestão' />
             <ITEM to='/gestor'          icon='📊' label='Painel Gestor'  />
             <ITEM to='/gestor/usuarios' icon='👤' label='Usuários'        />

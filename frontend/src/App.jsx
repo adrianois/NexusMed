@@ -17,6 +17,7 @@ import MinhaSenha  from './pages/MinhaSenha'
 import Logs        from './pages/Logs'
 import Usuarios    from './pages/Usuarios'
 import Triagem     from './pages/Triagem'
+import Retornos    from './pages/Retornos'
 
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminClinicas  from './pages/admin/AdminClinicas'
@@ -52,13 +53,14 @@ export default function App() {
           <Route path='/esqueci-senha'        element={<EsqueciSenha />} />
           <Route path='/resetar-senha'        element={<ResetarSenha />} />
 
-          {/* Geral — normal / gestor / admin (sem prontuários) */}
+          {/* Geral — normal / gestor / admin */}
           <Route path='/dashboard'   element={<PrivateRoute perfis={GERAL}><Dashboard /></PrivateRoute>} />
           <Route path='/pacientes'   element={<PrivateRoute perfis={GERAL}><Pacientes /></PrivateRoute>} />
           <Route path='/consultas'   element={<PrivateRoute perfis={GERAL}><Consultas /></PrivateRoute>} />
           <Route path='/medicos'     element={<PrivateRoute perfis={GERAL}><Medicos /></PrivateRoute>} />
           <Route path='/minha-senha' element={<PrivateRoute perfis={TODOS}><MinhaSenha /></PrivateRoute>} />
           <Route path='/triagem'     element={<PrivateRoute perfis={GERAL}><Triagem /></PrivateRoute>} />
+          <Route path='/retornos'    element={<PrivateRoute perfis={GERAL}><Retornos /></PrivateRoute>} />
 
           {/* Admin */}
           <Route path='/admin'          element={<PrivateRoute perfis={['admin']}><AdminDashboard /></PrivateRoute>} />
