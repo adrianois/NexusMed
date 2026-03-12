@@ -8,11 +8,20 @@ router.use(autenticar)
 
 router.get('/', async (req, res) => {
   const { perfil, clinica_id } = req.usuario
-  let q = supabase.from('prontuarios').select('*').order('data_registro', { ascending: false })
+  let q = supabase
+    .from('prontuarios')
+    .select('*, pacientes(id, nome)')
+    .order('data_atendimento', { ascending: false })
   if (perfil !== 'admin' && clinica_id) q = q.eq('clinica_id', clinica_id)
   const { data, error } = await q
   if (error) return res.status(500).json({ error: error.message })
-  res.json(data || [])
+  // Normaliza: eleva pacientes.nome para paciente_nome no objeto raiz
+  const resultado = (data || []).map(p => ({
+    ...p,
+    paciente_nome: p.pacientes?.nome || null,
+    pacientes: undefined,
+  }))
+  res.json(resultado)
 })
 
 router.post('/', async (req, res) => {
