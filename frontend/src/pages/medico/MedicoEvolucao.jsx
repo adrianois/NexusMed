@@ -49,15 +49,20 @@ const Campo = ({ label, valor, cor = '#cbd5e1' }) => {
   )
 }
 
-// Agrupa array por paciente_id e retorna [{ paciente_id, registros }]
-function agruparPorPaciente(lista) {
+// Agrupa por paciente_id, guardando o nome que já vem em cada registro
+function agruparPorPaciente(lista, nomeFallback) {
   const mapa = {}
   lista.forEach(item => {
     const pid = item.paciente_id
-    if (!mapa[pid]) mapa[pid] = []
-    mapa[pid].push(item)
+    if (!mapa[pid]) mapa[pid] = {
+      paciente_id: pid,
+      // usa paciente_nome retornado pela API; se não existir usa o fallback
+      nome: item.paciente_nome || item.paciente?.nome || nomeFallback(pid),
+      registros: [],
+    }
+    mapa[pid].registros.push(item)
   })
-  return Object.entries(mapa).map(([paciente_id, registros]) => ({ paciente_id, registros }))
+  return Object.values(mapa)
 }
 
 export default function MedicoEvolucao() {
@@ -73,12 +78,11 @@ export default function MedicoEvolucao() {
   const [mostrarForm,  setMostrarForm]  = useState(false)
   const [filtroPac,    setFiltroPac]    = useState('')
   const [buscaAtend,   setBuscaAtend]   = useState('')
-  const [expandidoPac, setExpandidoPac] = useState({})   // { [paciente_id]: bool }
-  const [expandidoItem,setExpandidoItem]= useState(null)  // id do prontuário aberto
+  const [expandidoPac, setExpandidoPac] = useState({})
+  const [expandidoItem,setExpandidoItem]= useState(null)
   const { toast, ToastUI }             = useToast()
   const { confirmar, ConfirmModalUI }  = useConfirm()
 
-  // ── carregamento ──────────────────────────────────────────────────────────
   const carregar = async (paciente_id) => {
     setLoading(true)
     try {
@@ -107,22 +111,21 @@ export default function MedicoEvolucao() {
 
   useEffect(() => { carregar(); carregarProntuarios() }, [])
 
-  // ── helpers ───────────────────────────────────────────────────────────────
-  const nomePaciente = id => pacientes.find(p => p.id === id)?.nome || '—'
+  // nomePaciente: fallback para quando o nome não vem no registro
+  const nomePaciente = id => pacientes.find(p => p.id === id)?.nome || id || '—'
 
   const consultasPaciente = useMemo(() =>
     consultas.filter(c => c.paciente_id === form.paciente_id),
     [consultas, form.paciente_id]
   )
 
-  const evolucoesFiltradas = useMemo(() => {
-    if (!filtroPac) return evolucoes
-    return evolucoes.filter(e => e.paciente_id === filtroPac)
-  }, [evolucoes, filtroPac])
+  const evolucoesFiltradas = useMemo(() =>
+    filtroPac ? evolucoes.filter(e => e.paciente_id === filtroPac) : evolucoes,
+    [evolucoes, filtroPac]
+  )
 
   const prontuariosFiltrados = useMemo(() => {
-    let lista = prontuarios
-    if (filtroPac) lista = lista.filter(p => p.paciente_id === filtroPac)
+    let lista = filtroPac ? prontuarios.filter(p => p.paciente_id === filtroPac) : prontuarios
     if (buscaAtend.trim()) {
       const q = buscaAtend.toLowerCase()
       lista = lista.filter(p =>
@@ -131,15 +134,14 @@ export default function MedicoEvolucao() {
         p.conduta?.toLowerCase().includes(q) ||
         p.cid10?.toLowerCase().includes(q) ||
         p.prescricao?.toLowerCase().includes(q) ||
-        nomePaciente(p.paciente_id).toLowerCase().includes(q)
+        (p.paciente_nome || nomePaciente(p.paciente_id)).toLowerCase().includes(q)
       )
     }
     return lista
-  }, [prontuarios, filtroPac, buscaAtend])
+  }, [prontuarios, filtroPac, buscaAtend, pacientes])
 
-  // Grupos para as duas abas
-  const gruposEvolucoes    = useMemo(() => agruparPorPaciente(evolucoesFiltradas),   [evolucoesFiltradas])
-  const gruposProntuarios  = useMemo(() => agruparPorPaciente(prontuariosFiltrados), [prontuariosFiltrados])
+  const gruposEvolucoes   = useMemo(() => agruparPorPaciente(evolucoesFiltradas,  nomePaciente), [evolucoesFiltradas, pacientes])
+  const gruposProntuarios = useMemo(() => agruparPorPaciente(prontuariosFiltrados, nomePaciente), [prontuariosFiltrados, pacientes])
 
   const stats = useMemo(() => {
     const lista = filtroPac ? evolucoes.filter(e => e.paciente_id === filtroPac) : evolucoes
@@ -148,12 +150,10 @@ export default function MedicoEvolucao() {
       tipos:      Object.keys(TIPO_CFG).map(t => ({ tipo: t, qtd: lista.filter(e => e.tipo === t).length })),
       ultPesos:   lista.filter(e => e.peso).map(e => ({ data: e.data_registro, valor: parseFloat(e.peso) })).reverse().slice(-6),
       ultPressao: lista.filter(e => e.pressao)[0]?.pressao || null,
-      ultTemp:    lista.filter(e => e.temperatura)[0]?.temperatura || null,
       ultSat:     lista.filter(e => e.saturacao)[0]?.saturacao || null,
     }
   }, [evolucoes, filtroPac])
 
-  // ── ações ──────────────────────────────────────────────────────────────────
   const handleChange = e => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
 
   const handlePacienteChange = e => {
@@ -195,7 +195,6 @@ export default function MedicoEvolucao() {
 
   const togglePac = pid => setExpandidoPac(prev => ({ ...prev, [pid]: !prev[pid] }))
 
-  // ── sub-componentes ────────────────────────────────────────────────────────
   const card = (titulo, valor, cor, icon) => (
     <div style={{ background:'#1e293b', border:`1px solid ${cor}33`, borderRadius:'12px', padding:'16px 20px', flex:'1', minWidth:'140px' }}>
       <div style={{ fontSize:'1.6rem', marginBottom:'4px' }}>{icon}</div>
@@ -208,7 +207,7 @@ export default function MedicoEvolucao() {
     if (!dados.length) return <p style={{ color:'#475569', fontSize:'0.85rem', textAlign:'center', margin:'16px 0' }}>Nenhum registro de peso.</p>
     const max = Math.max(...dados.map(d => d.valor)), min = Math.min(...dados.map(d => d.valor))
     const range = max - min || 1, W = 340, H = 80, pad = 30
-    const pts = dados.map((d, i) => ({ x: pad + (i / Math.max(dados.length-1,1)) * (W-pad*2), y: H-10-((d.valor-min)/range)*(H-20), d }))
+    const pts = dados.map((d, i) => ({ x: pad+(i/Math.max(dados.length-1,1))*(W-pad*2), y: H-10-((d.valor-min)/range)*(H-20), d }))
     return (
       <svg width='100%' viewBox={`0 0 ${W} ${H+20}`} style={{ overflow:'visible' }}>
         <polyline points={pts.map(p=>`${p.x},${p.y}`).join(' ')} fill='none' stroke='#6366f1' strokeWidth='2.5' strokeLinejoin='round' />
@@ -225,30 +224,28 @@ export default function MedicoEvolucao() {
     )
   }
 
-  // Cabeçalho de grupo de paciente (usado nas duas abas)
-  const CabecalhoPaciente = ({ pid, qtd, corBorda = '#6366f1', badge }) => {
-    const aberto = expandidoPac[pid] !== false // default aberto
+  // Cabeçalho do grupo — recebe o nome já resolvido
+  const CabecalhoPaciente = ({ pid, nome, qtd, corBorda = '#6366f1', badge }) => {
+    const aberto = expandidoPac[pid] !== false
     return (
-      <div
-        onClick={() => togglePac(pid)}
-        style={{
-          display:'flex', alignItems:'center', justifyContent:'space-between',
-          background:'#0f172a', border:`1px solid ${corBorda}44`,
-          borderLeft:`4px solid ${corBorda}`, borderRadius:'10px',
-          padding:'12px 18px', cursor:'pointer', marginBottom: aberto ? '0' : '4px',
-          borderBottomLeftRadius: aberto ? '0' : '10px',
-          borderBottomRightRadius: aberto ? '0' : '10px',
-        }}
-      >
+      <div onClick={() => togglePac(pid)} style={{
+        display:'flex', alignItems:'center', justifyContent:'space-between',
+        background:'#0f172a', border:`1px solid ${corBorda}44`,
+        borderLeft:`4px solid ${corBorda}`, borderRadius:'10px',
+        padding:'12px 18px', cursor:'pointer',
+        borderBottomLeftRadius: aberto ? '0' : '10px',
+        borderBottomRightRadius: aberto ? '0' : '10px',
+        marginBottom: aberto ? '0' : '4px',
+      }}>
         <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
           <span style={{ fontSize:'1.4rem' }}>👤</span>
           <div>
-            <span style={{ color:'#e2e8f0', fontWeight:700, fontSize:'0.95rem' }}>{nomePaciente(pid)}</span>
+            <span style={{ color:'#e2e8f0', fontWeight:700, fontSize:'0.95rem' }}>{nome}</span>
             {badge && <span style={{ marginLeft:'10px', color:'#64748b', fontSize:'0.78rem' }}>{badge}</span>}
           </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-          <span style={{ background:`${corBorda}22`, color: corBorda, border:`1px solid ${corBorda}44`,
+          <span style={{ background:`${corBorda}22`, color:corBorda, border:`1px solid ${corBorda}44`,
             borderRadius:'20px', padding:'2px 12px', fontSize:'0.78rem', fontWeight:700 }}>
             {qtd} registro{qtd !== 1 ? 's' : ''}
           </span>
@@ -295,7 +292,7 @@ export default function MedicoEvolucao() {
         </button>
       </div>
 
-      {/* Dashboard — só quando paciente filtrado */}
+      {/* Dashboard */}
       {filtroPac && (
         <div style={{ marginBottom:'24px' }}>
           <h3 style={{ color:'#94a3b8', fontSize:'0.85rem', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'12px' }}>
@@ -331,7 +328,7 @@ export default function MedicoEvolucao() {
         </div>
       )}
 
-      {/* ════════════════════════════════════════ ABA EVOLUÇÕES */}
+      {/* ══ ABA EVOLUÇÕES ═══════════════════════════════════════ */}
       {aba === 'evolucoes' && (
         <>
           {mostrarForm && (
@@ -402,29 +399,18 @@ export default function MedicoEvolucao() {
                   <p>Nenhuma evolução registrada{filtroPac ? ' para este paciente' : ''}.</p>
                 </div>
               )}
-
-              {gruposEvolucoes.map(({ paciente_id: pid, registros }) => {
-                const aberto = expandidoPac[pid] !== false
+              {gruposEvolucoes.map(({ paciente_id: pid, nome, registros }) => {
+                const aberto  = expandidoPac[pid] !== false
                 const ultData = registros[0]?.data_registro
-                  ? new Date(registros[0].data_registro).toLocaleDateString('pt-BR')
-                  : null
+                  ? new Date(registros[0].data_registro).toLocaleDateString('pt-BR') : null
                 return (
                   <div key={pid} style={{ marginBottom:'16px' }}>
-                    <CabecalhoPaciente
-                      pid={pid}
-                      qtd={registros.length}
-                      corBorda='#60a5fa'
-                      badge={ultData ? `Último registro: ${ultData}` : undefined}
-                    />
-
+                    <CabecalhoPaciente pid={pid} nome={nome} qtd={registros.length} corBorda='#60a5fa'
+                      badge={ultData ? `Último registro: ${ultData}` : undefined} />
                     {aberto && (
-                      <div style={{
-                        border:'1px solid #1e293b', borderTop:'none',
+                      <div style={{ border:'1px solid #1e293b', borderTop:'none',
                         borderBottomLeftRadius:'10px', borderBottomRightRadius:'10px',
-                        padding:'16px', background:'#0a111e',
-                        position:'relative',
-                      }}>
-                        {/* Linha vertical da timeline */}
+                        padding:'16px', background:'#0a111e', position:'relative' }}>
                         <div style={{ position:'absolute', left:'35px', top:'8px', bottom:'8px', width:'2px', background:'#1e293b' }} />
                         {registros.map(e => {
                           const cfg = TIPO_CFG[e.tipo] || TIPO_CFG.evolucao
@@ -469,7 +455,7 @@ export default function MedicoEvolucao() {
         </>
       )}
 
-      {/* ═══════════════════════════════════ ABA ATENDIMENTOS */}
+      {/* ══ ABA ATENDIMENTOS ═════════════════════════════════ */}
       {aba === 'atendimentos' && (
         <>
           <div style={{ marginBottom:'16px' }}>
@@ -479,7 +465,6 @@ export default function MedicoEvolucao() {
               style={{ maxWidth:'520px' }}
             />
           </div>
-
           {loadingPront && <p className='page-loading'>Carregando atendimentos...</p>}
           {!loadingPront && (
             <>
@@ -489,33 +474,23 @@ export default function MedicoEvolucao() {
                   <p>Nenhum atendimento encontrado{filtroPac ? ' para este paciente' : ''}{buscaAtend ? ` com “${buscaAtend}”` : ''}.</p>
                 </div>
               )}
-
-              {gruposProntuarios.map(({ paciente_id: pid, registros }) => {
-                const aberto = expandidoPac[pid] !== false
+              {gruposProntuarios.map(({ paciente_id: pid, nome, registros }) => {
+                const aberto  = expandidoPac[pid] !== false
                 const ultData = registros[0]?.data_atendimento
-                  ? new Date(registros[0].data_atendimento+'T12:00:00').toLocaleDateString('pt-BR')
-                  : null
+                  ? new Date(registros[0].data_atendimento+'T12:00:00').toLocaleDateString('pt-BR') : null
                 return (
                   <div key={pid} style={{ marginBottom:'16px' }}>
-                    <CabecalhoPaciente
-                      pid={pid}
-                      qtd={registros.length}
-                      corBorda='#6366f1'
-                      badge={ultData ? `Último atendimento: ${ultData}` : undefined}
-                    />
-
+                    <CabecalhoPaciente pid={pid} nome={nome} qtd={registros.length} corBorda='#6366f1'
+                      badge={ultData ? `Último atendimento: ${ultData}` : undefined} />
                     {aberto && (
-                      <div style={{
-                        border:'1px solid #1e293b', borderTop:'none',
+                      <div style={{ border:'1px solid #1e293b', borderTop:'none',
                         borderBottomLeftRadius:'10px', borderBottomRightRadius:'10px',
                         padding:'12px', background:'#0a111e',
-                        display:'flex', flexDirection:'column', gap:'8px',
-                      }}>
+                        display:'flex', flexDirection:'column', gap:'8px' }}>
                         {registros.map(p => {
                           const itemAberto = expandidoItem === p.id
                           const dataFmt = p.data_atendimento
-                            ? new Date(p.data_atendimento+'T12:00:00').toLocaleDateString('pt-BR')
-                            : '—'
+                            ? new Date(p.data_atendimento+'T12:00:00').toLocaleDateString('pt-BR') : '—'
                           return (
                             <div key={p.id} style={{ background:'#1e293b', border:'1px solid #334155',
                               borderLeft:'3px solid #6366f1', borderRadius:'8px', overflow:'hidden' }}>
@@ -524,9 +499,11 @@ export default function MedicoEvolucao() {
                                 <div style={{ flex:1, minWidth:0 }}>
                                   <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
                                     <span style={{ color:'#a5b4fc', fontSize:'0.78rem', fontWeight:700 }}>📅 {dataFmt}</span>
-                                    {p.cid10 && <span style={{ color:'#6366f1', fontSize:'0.78rem', fontWeight:700, background:'rgba(99,102,241,0.12)', padding:'1px 8px', borderRadius:'12px' }}>CID {p.cid10}</span>}
+                                    {p.cid10 && <span style={{ color:'#6366f1', fontSize:'0.78rem', fontWeight:700,
+                                      background:'rgba(99,102,241,0.12)', padding:'1px 8px', borderRadius:'12px' }}>CID {p.cid10}</span>}
                                     {p.diagnostico && (
-                                      <span style={{ color:'#94a3b8', fontSize:'0.84rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'260px' }}>
+                                      <span style={{ color:'#94a3b8', fontSize:'0.84rem',
+                                        overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'260px' }}>
                                         {p.diagnostico}
                                       </span>
                                     )}
