@@ -77,14 +77,29 @@ export default function Consultas() {
     } finally { setLoading(false) }
   }
 
-  // Busca dados da clínica para o cabeçalho do PDF
   useEffect(() => {
     carregar()
-    if (user?.clinica_id) {
-      api.get(`/clinicas/${user.clinica_id}`)
-        .then(r => setClinica(r.data))
-        .catch(() => {})
+    // Busca dados completos da clínica pelo ID do usuário logado
+    const buscarClinica = async () => {
+      try {
+        // Tenta pelo ID direto
+        if (user?.clinica_id) {
+          const r = await api.get(`/clinicas/${user.clinica_id}`)
+          setClinica(r.data)
+          return
+        }
+        // Fallback: pega a primeira da lista (admin sem clinica_id)
+        const r = await api.get('/clinicas')
+        if (r.data?.length > 0) setClinica(r.data[0])
+      } catch {
+        // Se falhar, tenta listar e pegar a primeira
+        try {
+          const r = await api.get('/clinicas')
+          if (r.data?.length > 0) setClinica(r.data[0])
+        } catch { /* silencioso */ }
+      }
     }
+    buscarClinica()
   }, [])
 
   const nomePaciente     = id => pacientes.find(p => p.id === id)?.nome  || '—'
@@ -109,7 +124,7 @@ export default function Consultas() {
     const dataFormatada = c.data_consulta ? new Date(c.data_consulta + 'T12:00:00').toLocaleDateString('pt-BR') : '—'
     setEnviandoWpp(c.id)
     try {
-      await enviarConfirmacaoWhatsApp({ phone, paciente: nomePaciente(c.paciente_id), data: dataFormatada, hora: c.horario || 'A definir', medico: nomeMedico(c.medico_id), clinica: 'NexusMed' })
+      await enviarConfirmacaoWhatsApp({ phone, paciente: nomePaciente(c.paciente_id), data: dataFormatada, hora: c.horario || 'A definir', medico: nomeMedico(c.medico_id), clinica: clinica?.nome || 'NexusMed' })
       toast('✅ Mensagem enviada via WhatsApp!', 'success')
     } catch (err) {
       toast('Erro ao enviar WhatsApp: ' + (err.response?.data?.error || err.message), 'error')
@@ -201,9 +216,9 @@ export default function Consultas() {
   const handleGerarPdf = () => {
     gerarPdfConsultas({
       clinica,
-      consultas:       filtradas,
-      nomePacienteFn:  nomePaciente,
-      nomeMedicoFn:    nomeMedico,
+      consultas:      filtradas,
+      nomePacienteFn: nomePaciente,
+      nomeMedicoFn:   nomeMedico,
       filtroStatus,
       busca,
     })
@@ -277,16 +292,15 @@ export default function Consultas() {
         <button
           onClick={handleGerarPdf}
           disabled={filtradas.length === 0}
+          title={`Gerar PDF com ${filtradas.length} consulta${filtradas.length !== 1 ? 's' : ''} exibida${filtradas.length !== 1 ? 's' : ''}`}
           style={{
             display: 'flex', alignItems: 'center', gap: '6px',
             background: filtradas.length === 0 ? '#1e293b' : '#dc2626',
             color: '#fff', border: 'none', borderRadius: '8px',
             padding: '8px 16px', fontSize: '0.82rem', fontWeight: 700,
             cursor: filtradas.length === 0 ? 'not-allowed' : 'pointer',
-            opacity: filtradas.length === 0 ? 0.5 : 1,
-            transition: 'background 0.2s',
+            opacity: filtradas.length === 0 ? 0.5 : 1, transition: 'background 0.2s',
           }}
-          title={`Gerar PDF com ${filtradas.length} consulta${filtradas.length !== 1 ? 's' : ''} exibida${filtradas.length !== 1 ? 's' : ''}`}
         >
           📄 Gerar PDF ({filtradas.length})
         </button>
