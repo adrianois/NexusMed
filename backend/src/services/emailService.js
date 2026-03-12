@@ -1,15 +1,36 @@
 import nodemailer from 'nodemailer'
 
-const criarTransporter = () =>
-  nodemailer.createTransport({
-    host:   process.env.EMAIL_HOST   || 'smtp.gmail.com',
-    port:   Number(process.env.EMAIL_PORT) || 587,
-    secure: process.env.EMAIL_SECURE === 'true',
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+/**
+ * Cria o transporter do Nodemailer.
+ *
+ * Usando `service: 'gmail'` o nodemailer se conecta via HTTPS (porta 443)
+ * em vez de SMTP direto (porta 587/465), o que funciona no Render e demais
+ * plataformas que bloqueiam conexões SMTP de saída.
+ *
+ * Pré-requisito: usar uma SENHA DE APP do Google, não a senha normal.
+ * Gere em: https://myaccount.google.com/apppasswords
+ */
+const criarTransporter = () => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.warn('[emailService] EMAIL_USER/EMAIL_PASS não configurados.')
+    return null
+  }
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
   })
+}
 
 export const enviarEmailConsulta = async ({ para, paciente, clinica, endereco, medico, data, hora, linkConfirmacao }) => {
   const transporter = criarTransporter()
+
+  if (!transporter) {
+    console.warn(`[emailService] Email não enviado (sem credenciais). Destinatário: ${para}`)
+    return
+  }
 
   const linhaEndereco = endereco
     ? `<tr><td style="padding:6px 0;border-bottom:1px solid #e2e8f0;">
