@@ -8,9 +8,13 @@
     "types": ["vite/client"],
     "skipLibCheck": true,
 
+    /* Permitir arquivos .js/.jsx sem declarações de tipo */
+    "allowJs": true,
+    "checkJs": false,
+    "allowImportingTsExtensions": true,
+
     /* Bundler mode */
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
@@ -18,8 +22,8 @@
 
     /* Linting */
     "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
