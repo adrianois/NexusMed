@@ -12,7 +12,6 @@ export default function PageLayout({ children, title }) {
 
   useEffect(() => {
     const perfil = user?.perfil
-    // Acessível para normal, gestor e admin após correção do backend
     if (['gestor', 'normal', 'admin'].includes(perfil) && user?.clinica_id) {
       api.get('/gestor/minha-clinica')
         .then(r => {
@@ -34,12 +33,13 @@ export default function PageLayout({ children, title }) {
 
   // ── Médico ──────────────────────────────────────────────────────────────────
   const menuMedico = [
-    { to: '/medico',            icon: '🏥', label: 'Painel'       },
-    { to: '/medico/agenda',     icon: '📅', label: 'Agenda'       },
-    { to: '/medico/triagem',    icon: '🩺', label: 'Fila Triagem' },
-    { to: '/medico/historico',  icon: '📁', label: 'Histórico'    },
-    { to: '/medico/documentos', icon: '📑', label: 'Documentos'   },
-    { to: '/minha-senha',       icon: '🔐', label: 'Minha Senha'  },
+    { to: '/medico',            icon: '🏥', label: 'Painel'                },
+    { to: '/medico/agenda',     icon: '📅', label: 'Agenda'                },
+    { to: '/medico/triagem',    icon: '🩺', label: 'Fila Triagem'          },
+    { to: '/medico/evolucao',   icon: '📊', label: 'Evolução do Paciente'  },
+    { to: '/medico/historico',  icon: '📁', label: 'Histórico'             },
+    { to: '/medico/documentos', icon: '📑', label: 'Documentos'            },
+    { to: '/minha-senha',       icon: '🔐', label: 'Minha Senha'           },
   ]
 
   // ── Admin ──────────────────────────────────────────────────────────────────
@@ -71,18 +71,17 @@ export default function PageLayout({ children, title }) {
     { to: '/minha-senha',         icon: '🔐', label: 'Minha Senha'      },
   ]
 
-  // ── Normal (recepção) ──────────────────────────────────────────────────────────
+  // ── Normal (recepção) ──────────────────────────────────────────────────────
   const menuNormalBase = [
-    { to: '/dashboard',         icon: '🏠', label: 'Início'           },
-    { to: '/medicos',           icon: '👨‍⚕️', label: 'Médicos'          },
-    { to: '/pacientes',         icon: '👥', label: 'Pacientes'        },
-    { to: '/consultas',         icon: '📅', label: 'Consultas'        },
-    { to: '/pos-atendimento',   icon: '🏥', label: 'Pós-Atendimento'  },
-    { to: '/retornos',          icon: '🔄', label: 'Retornos'         },
-    { to: '/minha-senha',       icon: '🔐', label: 'Minha Senha'      },
+    { to: '/dashboard',         icon: '🏠', label: 'Início'          },
+    { to: '/medicos',           icon: '👨‍⚕️', label: 'Médicos'         },
+    { to: '/pacientes',         icon: '👥', label: 'Pacientes'       },
+    { to: '/consultas',         icon: '📅', label: 'Consultas'       },
+    { to: '/pos-atendimento',   icon: '🏥', label: 'Pós-Atendimento' },
+    { to: '/retornos',          icon: '🔄', label: 'Retornos'        },
+    { to: '/minha-senha',       icon: '🔐', label: 'Minha Senha'     },
   ]
 
-  // Insere Triagem dinamicamente conforme configuração da clínica
   const menuGestor = usaTriagem
     ? [...menuGestorBase.slice(0, 6), { to: '/triagem', icon: '🩺', label: 'Triagem' }, ...menuGestorBase.slice(6)]
     : menuGestorBase
