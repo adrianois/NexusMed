@@ -28,23 +28,41 @@ import confirmacaoRoutes    from './src/routes/confirmacaoRoutes.js'
 const app  = express()
 const port = process.env.PORT || 4000
 
+// Origens fixas sempre permitidas
+const ORIGENS_FIXAS = [
+  'https://nexus-med-phi.vercel.app',
+  'https://nexusmed.vercel.app',
+]
+
 const corsOptions = {
   origin: (origin, callback) => {
+    // Sem origin = requisição direta (Postman, curl, servidor) — sempre permite
+    if (!origin) return callback(null, true)
+
+    // Localhost e ambientes de dev
     if (
-      !origin ||
       origin.includes('localhost') ||
       origin.includes('app.github.dev') ||
       origin.includes('github.dev')
-    ) {
-      callback(null, true)
-    } else {
-      const allowed = (process.env.FRONTEND_URL || '').split(',')
-      if (allowed.some(u => origin.startsWith(u.trim()))) callback(null, true)
-      else callback(new Error('CORS: origem nao permitida: ' + origin))
-    }
+    ) return callback(null, true)
+
+    // Vercel: qualquer subdomínio do projeto (previews de PR também)
+    if (origin.includes('nexus-med') && origin.includes('vercel.app'))
+      return callback(null, true)
+
+    // Origens fixas
+    if (ORIGENS_FIXAS.some(u => origin.startsWith(u)))
+      return callback(null, true)
+
+    // Origens configuradas via variável de ambiente (separadas por vírgula)
+    const extras = (process.env.FRONTEND_URL || '').split(',').map(u => u.trim()).filter(Boolean)
+    if (extras.some(u => origin.startsWith(u)))
+      return callback(null, true)
+
+    callback(new Error('CORS: origem não permitida: ' + origin))
   },
-  methods: ['GET','POST','PUT','DELETE','PATCH','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }
 
