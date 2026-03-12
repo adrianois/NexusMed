@@ -5,6 +5,7 @@ import { useConfirm } from '../components/ConfirmModal'
 import { useToast } from '../components/Toast'
 import { enviarConfirmacaoWhatsApp } from '../services/whatsappService'
 import { enviarEmailConsulta } from '../services/emailService'
+import { gerarPdfConsultas } from '../services/pdfConsultas'
 import { useAuth } from '../context/AuthContext'
 import './InnerPage.css'
 
@@ -28,7 +29,6 @@ function BadgeStatus({ status }) {
   )
 }
 
-// ── Dashboard card ──────────────────────────────────────────────────────────
 function CardDash({ label, valor, icon, color, bg, ativo, onClick }) {
   return (
     <button onClick={onClick} style={{
@@ -50,6 +50,7 @@ export default function Consultas() {
   const [consultas,     setConsultas]     = useState([])
   const [pacientes,     setPacientes]     = useState([])
   const [medicos,       setMedicos]       = useState([])
+  const [clinica,       setClinica]       = useState(null)
   const [loading,       setLoading]       = useState(true)
   const [mostrarForm,   setMostrarForm]   = useState(false)
   const [editando,      setEditando]      = useState(null)
@@ -65,11 +66,26 @@ export default function Consultas() {
   const carregar = async () => {
     setLoading(true)
     try {
-      const [rc, rp, rm] = await Promise.all([api.get('/consultas'), api.get('/pacientes'), api.get('/medicos')])
-      setConsultas(rc.data || []); setPacientes(rp.data || []); setMedicos(rm.data || [])
+      const [rc, rp, rm] = await Promise.all([
+        api.get('/consultas'),
+        api.get('/pacientes'),
+        api.get('/medicos'),
+      ])
+      setConsultas(rc.data || [])
+      setPacientes(rp.data || [])
+      setMedicos(rm.data || [])
     } finally { setLoading(false) }
   }
-  useEffect(() => { carregar() }, [])
+
+  // Busca dados da clínica para o cabeçalho do PDF
+  useEffect(() => {
+    carregar()
+    if (user?.clinica_id) {
+      api.get(`/clinicas/${user.clinica_id}`)
+        .then(r => setClinica(r.data))
+        .catch(() => {})
+    }
+  }, [])
 
   const nomePaciente     = id => pacientes.find(p => p.id === id)?.nome  || '—'
   const nomeMedico       = id => medicos.find(m => m.id === id)?.nome    || '—'
@@ -79,7 +95,6 @@ export default function Consultas() {
     return (p?.celular || p?.telefone || '').replace(/\D/g, '')
   }
 
-  // ── Contadores para o dashboard ──
   const contadores = useMemo(() => {
     const total = consultas.length
     const porStatus = Object.fromEntries(Object.keys(STATUS_CFG).map(s => [s, 0]))
@@ -183,6 +198,17 @@ export default function Consultas() {
     return matchStatus && matchBusca
   }), [consultas, filtroStatus, busca, pacientes, medicos])
 
+  const handleGerarPdf = () => {
+    gerarPdfConsultas({
+      clinica,
+      consultas:       filtradas,
+      nomePacienteFn:  nomePaciente,
+      nomeMedicoFn:    nomeMedico,
+      filtroStatus,
+      busca,
+    })
+  }
+
   const proximosStatus = {
     agendada:   ['confirmada'],
     confirmada: ['liberada'],
@@ -212,7 +238,7 @@ export default function Consultas() {
     <PageLayout title='📅 Consultas'>
       <ConfirmModalUI /><ToastUI />
 
-      {/* ── Dashboard ── */}
+      {/* Dashboard */}
       {!loading && (
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
           <CardDash
@@ -233,13 +259,12 @@ export default function Consultas() {
         </div>
       )}
 
-      {/* ── Toolbar ── */}
+      {/* Toolbar */}
       <div className='inner-toolbar'>
-        <input className='form-input' style={{ maxWidth: '260px' }}
+        <input className='form-input' style={{ maxWidth: '240px' }}
           placeholder='🔍 Buscar paciente, médico ou motivo...'
           value={busca} onChange={e => setBusca(e.target.value)} />
 
-        {/* Filtro por status (select compacto) */}
         <select className='form-select' style={{ maxWidth: '180px' }}
           value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
           <option value='todos'>Todos os status</option>
@@ -247,6 +272,24 @@ export default function Consultas() {
             <option key={k} value={k}>{v.icon} {v.label}</option>
           ))}
         </select>
+
+        {/* Botão Gerar PDF */}
+        <button
+          onClick={handleGerarPdf}
+          disabled={filtradas.length === 0}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            background: filtradas.length === 0 ? '#1e293b' : '#dc2626',
+            color: '#fff', border: 'none', borderRadius: '8px',
+            padding: '8px 16px', fontSize: '0.82rem', fontWeight: 700,
+            cursor: filtradas.length === 0 ? 'not-allowed' : 'pointer',
+            opacity: filtradas.length === 0 ? 0.5 : 1,
+            transition: 'background 0.2s',
+          }}
+          title={`Gerar PDF com ${filtradas.length} consulta${filtradas.length !== 1 ? 's' : ''} exibida${filtradas.length !== 1 ? 's' : ''}`}
+        >
+          📄 Gerar PDF ({filtradas.length})
+        </button>
 
         <button className={`btn ${mostrarForm ? 'btn-secondary' : 'btn-primary'}`}
           onClick={() => { if (mostrarForm) { setMostrarForm(false); setEditando(null); setForm(FORM_INICIAL) } else abrirNovo() }}>
