@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import api from '../api'
 import PageLayout from '../components/PageLayout'
+import { generateTriagemPDF } from '../utils/generateTriagemPDF'
 import './InnerPage.css'
 
 const PRIORIDADE_CFG = {
@@ -53,6 +54,7 @@ export default function Triagem() {
   const [salvando,     setSalvando]     = useState(false)
   const [dashboard,    setDashboard]    = useState(null)
   const [filtroStatus, setFiltroStatus] = useState('')
+  const [gerando,      setGerando]      = useState(false)
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -75,6 +77,8 @@ export default function Triagem() {
 
   const nomePaciente = id => pacientes.find(p => p.id === id)?.nome || '—'
   const nomeMedico   = id => medicos.find(m => m.id === id)?.nome  || '—'
+  const obterPaciente = id => pacientes.find(p => p.id === id)
+  const obterMedico = id => medicos.find(m => m.id === id)
 
   const abrirTriagem = async (consulta) => {
     if (consulta.status === 'confirmada') {
@@ -93,6 +97,20 @@ export default function Triagem() {
     })
     setModalId(consulta.id)
     carregar()
+  }
+
+  const gerarPDF = (consulta) => {
+    try {
+      setGerando(true)
+      const paciente = obterPaciente(consulta.paciente_id)
+      const medico = obterMedico(consulta.medico_id)
+      generateTriagemPDF(consulta, paciente, medico)
+    } catch (err) {
+      console.error('Erro ao gerar PDF:', err)
+      alert('Erro ao gerar PDF: ' + err.message)
+    } finally {
+      setGerando(false)
+    }
   }
 
   const fecharModal = () => { setModalId(null); setForm(FORM_VAZIO) }
@@ -241,16 +259,29 @@ export default function Triagem() {
                   </div>
                 )}
 
-                {/* Botão */}
-                <button
-                  className={c.status === 'triado' ? 'btn btn-secondary' : 'btn btn-primary'}
-                  style={{ fontSize: '0.82rem', padding: '7px 16px', whiteSpace: 'nowrap' }}
-                  onClick={() => abrirTriagem(c)}
-                >
-                  {c.status === 'triado'     ? '👁️ Ver / Editar'
-                    : c.status === 'em_triagem' ? '✏️ Continuar'
-                    : '🩺 Iniciar Triagem'}
-                </button>
+                {/* Botões */}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {c.status === 'triado' && (
+                    <button
+                      className='btn btn-outline'
+                      style={{ fontSize: '0.82rem', padding: '7px 14px', whiteSpace: 'nowrap' }}
+                      onClick={() => gerarPDF(c)}
+                      disabled={gerando}
+                      title='Gerar PDF com dados da triagem'
+                    >
+                      {gerando ? '⏳' : '📄'} PDF
+                    </button>
+                  )}
+                  <button
+                    className={c.status === 'triado' ? 'btn btn-secondary' : 'btn btn-primary'}
+                    style={{ fontSize: '0.82rem', padding: '7px 16px', whiteSpace: 'nowrap' }}
+                    onClick={() => abrirTriagem(c)}
+                  >
+                    {c.status === 'triado'     ? '👁️ Ver / Editar'
+                      : c.status === 'em_triagem' ? '✏️ Continuar'
+                      : '🩺 Iniciar Triagem'}
+                  </button>
+                </div>
               </div>
             )
           })}
@@ -293,12 +324,28 @@ export default function Triagem() {
                   </p>
                 )}
               </div>
-              <button onClick={fecharModal} style={{
-                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: '8px', color: '#64748b',
-                fontSize: '1.1rem', cursor: 'pointer', lineHeight: 1,
-                width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>×</button>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                {consultaModal.status === 'triado' && (
+                  <button
+                    onClick={() => { gerarPDF(consultaModal); fecharModal() }}
+                    style={{
+                      background: 'rgba(33, 128, 141, 0.2)', border: '1px solid rgba(33, 128, 141, 0.4)',
+                      borderRadius: '8px', color: '#32b8c6',
+                      fontSize: '0.9rem', cursor: 'pointer', padding: '8px 12px',
+                      fontWeight: 600, transition: 'all 0.2s',
+                    }}
+                    title='Gerar PDF da triagem'
+                  >
+                    📄 Gerar PDF
+                  </button>
+                )}
+                <button onClick={fecharModal} style={{
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '8px', color: '#64748b',
+                  fontSize: '1.1rem', cursor: 'pointer', lineHeight: 1,
+                  width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>×</button>
+              </div>
             </div>
 
             <form onSubmit={salvarTriagem}>
