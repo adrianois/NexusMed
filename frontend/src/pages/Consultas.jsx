@@ -29,7 +29,7 @@ function BadgeStatus({ status }) {
 }
 
 export default function Consultas() {
-  const { usuario } = useAuth()
+  const { user } = useAuth()  // user.clinica_id vem do JWT decodificado
   const [consultas,     setConsultas]     = useState([])
   const [pacientes,     setPacientes]     = useState([])
   const [medicos,       setMedicos]       = useState([])
@@ -82,12 +82,12 @@ export default function Consultas() {
     setEnviandoEmail(c.id)
     try {
       await enviarEmailConsulta({
-        para:       email,
-        paciente:   nomePaciente(c.paciente_id),
-        clinica_id: usuario?.clinica_id || null,
-        medico:     nomeMedico(c.medico_id),
-        data:       dataFormatada,
-        hora:       c.horario || 'A definir',
+        para:        email,
+        paciente:    nomePaciente(c.paciente_id),
+        clinica_id:  user?.clinica_id || null,
+        medico:      nomeMedico(c.medico_id),
+        data:        dataFormatada,
+        hora:        c.horario || 'A definir',
         consulta_id: c.id,
       })
       toast(`✉️ E-mail com link de confirmação enviado para ${email}!`, 'success')
