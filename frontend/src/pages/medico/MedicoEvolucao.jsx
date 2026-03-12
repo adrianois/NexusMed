@@ -17,6 +17,31 @@ const FORM_INICIAL = {
   peso:'', altura:'', pressao:'', temperatura:'', saturacao:'', glicemia:'', observacoes:'',
 }
 
+// ─── Utilitário de data seguro ────────────────────────────────────────────────
+// Aceita: 'YYYY-MM-DD', ISO timestamp, ou qualquer string de data válida
+// Retorna: string formatada pt-BR ou fallback se inválida
+function fmtData(valor, opcoes, fallback = '—') {
+  if (!valor) return fallback
+  // Se vier só data (YYYY-MM-DD), adiciona hora para evitar interpretação UTC
+  const str = String(valor)
+  const iso  = /^\d{4}-\d{2}-\d{2}$/.test(str) ? str + 'T12:00:00' : str
+  const d    = new Date(iso)
+  if (isNaN(d.getTime())) return fallback
+  return d.toLocaleDateString('pt-BR', opcoes)
+}
+
+function fmtDataHora(valor, fallback = '—') {
+  return fmtData(valor, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }, fallback)
+}
+
+function fmtDataCurta(valor, fallback = '—') {
+  return fmtData(valor, { day:'2-digit', month:'2-digit' }, fallback)
+}
+
+function fmtDataLonga(valor, fallback = '—') {
+  return fmtData(valor, { day:'2-digit', month:'2-digit', year:'numeric' }, fallback)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Componentes auxiliares — FORA do componente principal
 // ─────────────────────────────────────────────────────────────────────────────
@@ -118,7 +143,7 @@ function GraficoLinha({ dados, cor = '#6366f1', unidade = '', vazia = 'Sem dados
             {p.d.valor}{unidade}
           </text>
           <text x={p.x} y={H+padB+6} textAnchor="middle" fill="#475569" fontSize="8">
-            {p.d.label || (p.d.data ? new Date(p.d.data).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }) : '')}
+            {p.d.label || fmtDataCurta(p.d.data)}
           </text>
         </g>
       ))}
@@ -190,7 +215,7 @@ function GraficoPressao({ dados }) {
           <circle cx={px(i)} cy={py(d.diastolica)} r="3.5" fill="#60a5fa" stroke="#0f172a" strokeWidth="1.5"/>
           <text x={px(i)} y={py(d.diastolica)-7} textAnchor="middle" fill="#60a5fa" fontSize="8">{d.diastolica}</text>
           <text x={px(i)} y={H+padB-4} textAnchor="middle" fill="#475569" fontSize="8">
-            {new Date(d.data).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
+            {fmtDataCurta(d.data)}
           </text>
         </g>
       ))}
@@ -238,7 +263,6 @@ export default function MedicoEvolucao() {
   const { toast, ToastUI }                     = useToast()
   const { confirmar, ConfirmModalUI }          = useConfirm()
 
-  // Carrega PACIENTES separadamente — não depende de outras rotas
   const carregarPacientes = async () => {
     try {
       const { data } = await api.get('/pacientes')
@@ -275,7 +299,11 @@ export default function MedicoEvolucao() {
       const { data } = await api.get('/prontuarios')
       let lista = data || []
       if (paciente_id) lista = lista.filter(p => p.paciente_id === paciente_id)
-      lista.sort((a, b) => new Date(b.data_atendimento || 0) - new Date(a.data_atendimento || 0))
+      lista.sort((a, b) => {
+        const da = a.data_atendimento || a.created_at || ''
+        const db = b.data_atendimento || b.created_at || ''
+        return db.localeCompare(da)
+      })
       setProntuarios(lista)
     } catch (err) {
       console.error('[NexusMed] Erro ao carregar prontuários:', err)
@@ -348,8 +376,10 @@ export default function MedicoEvolucao() {
 
     const porMes = {}
     base.forEach(p => {
-      if (!p.data_atendimento) return
-      const d   = new Date(p.data_atendimento + 'T12:00:00')
+      const dataRef = p.data_atendimento || p.created_at
+      if (!dataRef) return
+      const d   = new Date(dataRef.includes('T') ? dataRef : dataRef + 'T12:00:00')
+      if (isNaN(d.getTime())) return
       const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
       porMes[key] = (porMes[key] || 0) + 1
     })
@@ -578,7 +608,7 @@ export default function MedicoEvolucao() {
                     <option value="">Nenhuma</option>
                     {consultasPaciente.map(c => (
                       <option key={c.id} value={c.id}>
-                        {c.data_consulta ? new Date(c.data_consulta+'T12:00:00').toLocaleDateString('pt-BR') : ''} — {c.motivo}
+                        {fmtDataLonga(c.data_consulta)} — {c.motivo}
                       </option>
                     ))}
                   </select>
@@ -624,12 +654,11 @@ export default function MedicoEvolucao() {
               )}
               {gruposEvolucoes.map(({ paciente_id: pid, nome, registros }) => {
                 const aberto  = expandidoPac[pid] !== false
-                const ultData = registros[0]?.data_registro
-                  ? new Date(registros[0].data_registro).toLocaleDateString('pt-BR') : null
+                const ultData = fmtDataLonga(registros[0]?.data_registro)
                 return (
                   <div key={pid} style={{ marginBottom:'16px' }}>
                     <CabecalhoPaciente pid={pid} nome={nome} qtd={registros.length} corBorda="#60a5fa"
-                      badge={ultData ? `Último: ${ultData}` : undefined} />
+                      badge={ultData !== '—' ? `Último: ${ultData}` : undefined} />
                     {aberto && (
                       <div style={{ border:'1px solid #1e293b', borderTop:'none',
                         borderBottomLeftRadius:'10px', borderBottomRightRadius:'10px',
@@ -637,9 +666,7 @@ export default function MedicoEvolucao() {
                         <div style={{ position:'absolute', left:'35px', top:'8px', bottom:'8px', width:'2px', background:'#1e293b' }} />
                         {registros.map(e => {
                           const cfg = TIPO_CFG[e.tipo] || TIPO_CFG.evolucao
-                          const dataFmt = e.data_registro
-                            ? new Date(e.data_registro).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})
-                            : '—'
+                          const dataFmt = fmtDataHora(e.data_registro)
                           return (
                             <div key={e.id} style={{ display:'flex', gap:'16px', marginBottom:'16px', position:'relative', zIndex:1 }}>
                               <div style={{ width:'40px', height:'40px', borderRadius:'50%', flexShrink:0,
@@ -703,17 +730,16 @@ export default function MedicoEvolucao() {
                   {gruposProntuarios.length === 0 && (
                     <div style={{ textAlign:'center', color:'#475569', padding:'40px' }}>
                       <div style={{ fontSize:'3rem', marginBottom:'12px' }}>📂</div>
-                      <p>Nenhum atendimento encontrado{filtroPac ? ' para este paciente' : ''}{buscaAtend ? ` com “${buscaAtend}”` : ''}.</p>
+                      <p>Nenhum atendimento encontrado{filtroPac ? ' para este paciente' : ''}{buscaAtend ? ` com "${buscaAtend}"` : ''}.</p>
                     </div>
                   )}
                   {gruposProntuarios.map(({ paciente_id: pid, nome, registros }) => {
                     const aberto  = expandidoPac[pid] !== false
-                    const ultData = registros[0]?.data_atendimento
-                      ? new Date(registros[0].data_atendimento+'T12:00:00').toLocaleDateString('pt-BR') : null
+                    const ultData = fmtDataLonga(registros[0]?.data_atendimento || registros[0]?.created_at)
                     return (
                       <div key={pid} style={{ marginBottom:'16px' }}>
                         <CabecalhoPaciente pid={pid} nome={nome} qtd={registros.length} corBorda="#6366f1"
-                          badge={ultData ? `Último: ${ultData}` : undefined} />
+                          badge={ultData !== '—' ? `Último: ${ultData}` : undefined} />
                         {aberto && (
                           <div style={{ border:'1px solid #1e293b', borderTop:'none',
                             borderBottomLeftRadius:'10px', borderBottomRightRadius:'10px',
@@ -721,8 +747,8 @@ export default function MedicoEvolucao() {
                             display:'flex', flexDirection:'column', gap:'8px' }}>
                             {registros.map(p => {
                               const itemAberto = expandidoItem === p.id
-                              const dataFmt = p.data_atendimento
-                                ? new Date(p.data_atendimento+'T12:00:00').toLocaleDateString('pt-BR') : '—'
+                              // usa data_atendimento, com fallback para created_at
+                              const dataFmt = fmtDataLonga(p.data_atendimento || p.created_at)
                               return (
                                 <div key={p.id} style={{ background:'#1e293b', border:'1px solid #334155',
                                   borderLeft:'3px solid #6366f1', borderRadius:'8px', overflow:'hidden' }}>
