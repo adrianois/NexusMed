@@ -9,6 +9,7 @@ import NaoAutorizado       from './pages/NaoAutorizado'
 import EsqueciSenha        from './pages/EsqueciSenha'
 import ResetarSenha        from './pages/ResetarSenha'
 import ConfirmarConsulta   from './pages/ConfirmarConsulta'
+import AgendamentoPublico  from './pages/AgendamentoPublico'
 
 import Dashboard        from './pages/Dashboard'
 import Pacientes        from './pages/Pacientes'
@@ -56,6 +57,7 @@ export default function App() {
           <Route path='/esqueci-senha'        element={<EsqueciSenha />} />
           <Route path='/resetar-senha'        element={<ResetarSenha />} />
           <Route path='/confirmar-consulta'   element={<ConfirmarConsulta />} />
+          <Route path='/agendar'              element={<AgendamentoPublico />} />
 
           {/* Geral */}
           <Route path='/dashboard'        element={<PrivateRoute perfis={GERAL}><Dashboard /></PrivateRoute>} />
