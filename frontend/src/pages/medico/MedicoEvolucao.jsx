@@ -18,7 +18,7 @@ const FORM_INICIAL = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Componentes auxiliares — FORA do componente principal (evita remount)
+// Componentes auxiliares — FORA do componente principal
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Sinais({ e }) {
@@ -65,8 +65,7 @@ function CardGrafico({ titulo, icon, cor, children }) {
   )
 }
 
-// Gráfico de linha SVG genérico
-function GraficoLinha({ dados, cor = '#6366f1', unidade = '', vazia = 'Sem dados', labelX }) {
+function GraficoLinha({ dados, cor = '#6366f1', unidade = '', vazia = 'Sem dados' }) {
   if (!dados || dados.length === 0)
     return <p style={{ color:'#475569', fontSize:'0.82rem', textAlign:'center', margin:'20px 0' }}>{vazia}</p>
 
@@ -127,7 +126,6 @@ function GraficoLinha({ dados, cor = '#6366f1', unidade = '', vazia = 'Sem dados
   )
 }
 
-// Gráfico de barras horizontais
 function GraficoBarras({ dados, corPadrao = '#6366f1' }) {
   if (!dados || dados.length === 0)
     return <p style={{ color:'#475569', fontSize:'0.82rem', textAlign:'center', margin:'20px 0' }}>Sem dados.</p>
@@ -159,7 +157,6 @@ function GraficoBarras({ dados, corPadrao = '#6366f1' }) {
   )
 }
 
-// Gráfico de pressão
 function GraficoPressao({ dados }) {
   if (!dados || dados.length === 0)
     return <p style={{ color:'#475569', fontSize:'0.82rem', textAlign:'center', margin:'20px 0' }}>Sem dados de pressão arterial.</p>
@@ -219,7 +216,6 @@ function agruparPorPaciente(lista, nomeFallback) {
   return Object.values(mapa)
 }
 
-// Paleta de cores para CIDs
 const PALETA = ['#6366f1','#f59e0b','#4ade80','#f87171','#a78bfa','#38bdf8','#fb923c','#34d399','#e879f9','#fbbf24']
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -242,18 +238,34 @@ export default function MedicoEvolucao() {
   const { toast, ToastUI }                     = useToast()
   const { confirmar, ConfirmModalUI }          = useConfirm()
 
+  // Carrega PACIENTES separadamente — não depende de outras rotas
+  const carregarPacientes = async () => {
+    try {
+      const { data } = await api.get('/pacientes')
+      setPacientes(data || [])
+    } catch (err) {
+      console.error('[NexusMed] Erro ao carregar pacientes:', err)
+    }
+  }
+
+  const carregarConsultas = async () => {
+    try {
+      const { data } = await api.get('/consultas')
+      setConsultas(data || [])
+    } catch (err) {
+      console.error('[NexusMed] Erro ao carregar consultas:', err)
+    }
+  }
+
   const carregar = async (paciente_id) => {
     setLoading(true)
     try {
       const params = paciente_id ? `?paciente_id=${paciente_id}` : ''
-      const [re, rp, rc] = await Promise.all([
-        api.get(`/evolucoes${params}`),
-        api.get('/pacientes'),
-        api.get('/consultas'),
-      ])
-      setEvolucoes(re.data || [])
-      setPacientes(rp.data || [])
-      setConsultas(rc.data || [])
+      const { data } = await api.get(`/evolucoes${params}`)
+      setEvolucoes(data || [])
+    } catch (err) {
+      console.error('[NexusMed] Erro ao carregar evoluções:', err)
+      setEvolucoes([])
     } finally { setLoading(false) }
   }
 
@@ -265,10 +277,18 @@ export default function MedicoEvolucao() {
       if (paciente_id) lista = lista.filter(p => p.paciente_id === paciente_id)
       lista.sort((a, b) => new Date(b.data_atendimento || 0) - new Date(a.data_atendimento || 0))
       setProntuarios(lista)
+    } catch (err) {
+      console.error('[NexusMed] Erro ao carregar prontuários:', err)
+      setProntuarios([])
     } finally { setLoadingPront(false) }
   }
 
-  useEffect(() => { carregar(); carregarProntuarios() }, [])
+  useEffect(() => {
+    carregarPacientes()
+    carregarConsultas()
+    carregar()
+    carregarProntuarios()
+  }, [])
 
   const nomePaciente = id => pacientes.find(p => p.id === id)?.nome || id || '—'
 
@@ -301,7 +321,6 @@ export default function MedicoEvolucao() {
   const gruposEvolucoes   = useMemo(() => agruparPorPaciente(evolucoesFiltradas,  nomePaciente), [evolucoesFiltradas, pacientes])
   const gruposProntuarios = useMemo(() => agruparPorPaciente(prontuariosFiltrados, nomePaciente), [prontuariosFiltrados, pacientes])
 
-  // ─ dados gráficos das EVOLUÇÕES (sinais vitais)
   const dadosGraficos = useMemo(() => {
     const base     = filtroPac ? evolucoes.filter(e => e.paciente_id === filtroPac) : evolucoes
     const ordenado = [...base].sort((a, b) => new Date(a.data_registro) - new Date(b.data_registro))
@@ -322,13 +341,11 @@ export default function MedicoEvolucao() {
     return { peso, temp, sat, glicemia, pressao, tiposBar, total: base.length }
   }, [evolucoes, filtroPac])
 
-  // ─ dados gráficos dos ATENDIMENTOS / PRONTUÁRIOS
   const dadosGraficosAtend = useMemo(() => {
     const base = filtroPac
       ? prontuarios.filter(p => p.paciente_id === filtroPac)
       : prontuarios
 
-    // 1) Atendimentos por mês (linha)
     const porMes = {}
     base.forEach(p => {
       if (!p.data_atendimento) return
@@ -341,7 +358,6 @@ export default function MedicoEvolucao() {
       valor: porMes[k],
     }))
 
-    // 2) Top 10 CIDs (barras)
     const cidMap = {}
     base.forEach(p => {
       if (!p.cid10) return
@@ -349,50 +365,42 @@ export default function MedicoEvolucao() {
       cidMap[cid] = (cidMap[cid] || 0) + 1
     })
     const topCids = Object.entries(cidMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
+      .sort((a, b) => b[1] - a[1]).slice(0, 10)
       .map(([label, qtd], i) => ({ label, qtd, cor: PALETA[i % PALETA.length] }))
 
-    // 3) Diagnósticos mais frequentes (barras, top 8)
     const diagMap = {}
     base.forEach(p => {
       if (!p.diagnostico) return
-      const diag = p.diagnostico.trim()
-      diagMap[diag] = (diagMap[diag] || 0) + 1
+      diagMap[p.diagnostico.trim()] = (diagMap[p.diagnostico.trim()] || 0) + 1
     })
     const topDiag = Object.entries(diagMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
+      .sort((a, b) => b[1] - a[1]).slice(0, 8)
       .map(([label, qtd], i) => ({ label, qtd, cor: PALETA[i % PALETA.length] }))
 
-    // 4) Distribuição de retorno (barras: semanas)
     const retornoMap = { '1 semana':0, '2 semanas':0, '3 semanas':0, '1 mês':0, '2 meses':0, '3+ meses':0, 'Sem retorno':0 }
     base.forEach(p => {
       const dias = parseInt(p.retorno_dias || 0)
-      if (!dias)                retornoMap['Sem retorno']++
-      else if (dias <= 7)       retornoMap['1 semana']++
-      else if (dias <= 14)      retornoMap['2 semanas']++
-      else if (dias <= 21)      retornoMap['3 semanas']++
-      else if (dias <= 30)      retornoMap['1 mês']++
-      else if (dias <= 60)      retornoMap['2 meses']++
-      else                      retornoMap['3+ meses']++
+      if (!dias)           retornoMap['Sem retorno']++
+      else if (dias <= 7)  retornoMap['1 semana']++
+      else if (dias <= 14) retornoMap['2 semanas']++
+      else if (dias <= 21) retornoMap['3 semanas']++
+      else if (dias <= 30) retornoMap['1 mês']++
+      else if (dias <= 60) retornoMap['2 meses']++
+      else                 retornoMap['3+ meses']++
     })
     const retornoBars = Object.entries(retornoMap)
       .map(([label, qtd], i) => ({ label, qtd, cor: PALETA[i % PALETA.length] }))
       .filter(d => d.qtd > 0)
 
-    // 5) Pacientes com mais atendimentos (apenas sem filtro de paciente)
     const pacMap = {}
     if (!filtroPac) {
       base.forEach(p => {
-        const pid  = p.paciente_id
-        const nome = p.paciente_nome || pid
+        const nome = p.paciente_nome || p.paciente_id
         pacMap[nome] = (pacMap[nome] || 0) + 1
       })
     }
     const topPac = Object.entries(pacMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
+      .sort((a, b) => b[1] - a[1]).slice(0, 8)
       .map(([label, qtd], i) => ({ label, qtd, cor: PALETA[i % PALETA.length] }))
 
     return { atendPorMes, topCids, topDiag, retornoBars, topPac, total: base.length }
@@ -671,7 +679,6 @@ export default function MedicoEvolucao() {
       {/* ══ ABA ATENDIMENTOS ══════════════════════════════ */}
       {aba === 'atendimentos' && (
         <div>
-          {/* Sub-abas: Lista | Gráficos */}
           <div style={{ display:'flex', borderBottom:'1px solid #1e293b', marginBottom:'16px', gap:'4px' }}>
             <button style={subTabStyle(subAbaAtend==='lista')} onClick={() => setSubAbaAtend('lista')}>
               📄 Lista de Atendimentos
@@ -681,7 +688,6 @@ export default function MedicoEvolucao() {
             </button>
           </div>
 
-          {/* ─ SUB-ABA LISTA ─ */}
           {subAbaAtend === 'lista' && (
             <>
               <div style={{ marginBottom:'16px' }}>
@@ -770,7 +776,6 @@ export default function MedicoEvolucao() {
             </>
           )}
 
-          {/* ─ SUB-ABA GRÁFICOS DE ATENDIMENTOS ─ */}
           {subAbaAtend === 'graficos' && (
             <div>
               {dadosGraficosAtend.total === 0 ? (
@@ -780,20 +785,13 @@ export default function MedicoEvolucao() {
                 </div>
               ) : (
                 <>
-                  {/* cabeçalho resumo */}
                   <p style={{ color:'#64748b', fontSize:'0.82rem', marginBottom:'20px' }}>
                     {filtroPac
                       ? <><strong style={{ color:'#e2e8f0' }}>{nomePaciente(filtroPac)}</strong> — {dadosGraficosAtend.total} atendimento{dadosGraficosAtend.total !== 1 ? 's' : ''}</>
                       : <>{dadosGraficosAtend.total} atendimentos no total</>}
                   </p>
-
-                  {/* Linha: Atendimentos por mês */}
                   <CardGrafico titulo="Atendimentos por Mês" icon="📅" cor="#6366f1">
-                    <GraficoLinha
-                      dados={dadosGraficosAtend.atendPorMes}
-                      cor="#6366f1"
-                      vazia="Sem datas de atendimento registradas."
-                    />
+                    <GraficoLinha dados={dadosGraficosAtend.atendPorMes} cor="#6366f1" vazia="Sem datas de atendimento registradas." />
                     {dadosGraficosAtend.atendPorMes.length > 0 && (
                       <div style={{ display:'flex', gap:'16px', marginTop:'8px', fontSize:'0.78rem', color:'#64748b' }}>
                         <span>Total <strong style={{ color:'#a5b4fc' }}>{dadosGraficosAtend.total}</strong></span>
@@ -803,40 +801,30 @@ export default function MedicoEvolucao() {
                       </div>
                     )}
                   </CardGrafico>
-
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))', gap:'16px' }}>
-
-                    {/* CIDs mais frequentes */}
                     <CardGrafico titulo="CIDs mais Frequentes" icon="🩺" cor="#f87171">
                       {dadosGraficosAtend.topCids.length === 0
                         ? <p style={{ color:'#475569', fontSize:'0.82rem', textAlign:'center', margin:'20px 0' }}>Sem CIDs cadastrados.</p>
                         : <GraficoBarras dados={dadosGraficosAtend.topCids} />
                       }
                     </CardGrafico>
-
-                    {/* Diagnósticos mais frequentes */}
                     <CardGrafico titulo="Diagnósticos Frequentes" icon="📌" cor="#f59e0b">
                       {dadosGraficosAtend.topDiag.length === 0
                         ? <p style={{ color:'#475569', fontSize:'0.82rem', textAlign:'center', margin:'20px 0' }}>Sem diagnósticos cadastrados.</p>
                         : <GraficoBarras dados={dadosGraficosAtend.topDiag} corPadrao="#f59e0b" />
                       }
                     </CardGrafico>
-
-                    {/* Distribuição de retorno */}
                     <CardGrafico titulo="Prazo de Retorno" icon="🔄" cor="#4ade80">
                       {dadosGraficosAtend.retornoBars.length === 0
                         ? <p style={{ color:'#475569', fontSize:'0.82rem', textAlign:'center', margin:'20px 0' }}>Sem dados de retorno.</p>
                         : <GraficoBarras dados={dadosGraficosAtend.retornoBars} corPadrao="#4ade80" />
                       }
                     </CardGrafico>
-
-                    {/* Pacientes com mais atendimentos (só sem filtro de paciente) */}
                     {!filtroPac && dadosGraficosAtend.topPac.length > 0 && (
                       <CardGrafico titulo="Pacientes com Mais Atendimentos" icon="👥" cor="#a78bfa">
                         <GraficoBarras dados={dadosGraficosAtend.topPac} corPadrao="#a78bfa" />
                       </CardGrafico>
                     )}
-
                   </div>
                 </>
               )}
@@ -845,7 +833,7 @@ export default function MedicoEvolucao() {
         </div>
       )}
 
-      {/* ══ ABA GRÁFICOS (sinais vitais de evoluções) ════════════════ */}
+      {/* ══ ABA GRÁFICOS (sinais vitais) ══════════════════════════════ */}
       {aba === 'graficos' && (
         <div>
           {!filtroPac && (
