@@ -9,11 +9,11 @@ import { useAuth } from '../context/AuthContext'
 import './InnerPage.css'
 
 const STATUS_CFG = {
-  agendada:   { color: '#60a5fa', bg: 'rgba(96,165,250,0.12)',  label: 'Agendada'   },
-  confirmada: { color: '#4ade80', bg: 'rgba(34,197,94,0.12)',   label: 'Confirmada' },
-  em_triagem: { color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  label: 'Em Triagem' },
-  triado:     { color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', label: 'Triado'     },
-  liberada:   { color: '#94a3b8', bg: 'rgba(148,163,184,0.1)',  label: 'Liberada'   },
+  agendada:   { color: '#60a5fa', bg: 'rgba(96,165,250,0.12)',  label: 'Agendada',   icon: '📅' },
+  confirmada: { color: '#4ade80', bg: 'rgba(34,197,94,0.12)',   label: 'Confirmada', icon: '✅' },
+  em_triagem: { color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  label: 'Em Triagem', icon: '🩺' },
+  triado:     { color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', label: 'Triado',     icon: '🔬' },
+  liberada:   { color: '#94a3b8', bg: 'rgba(148,163,184,0.1)',  label: 'Liberada',   icon: '🏁' },
 }
 
 const DIA_MAP = { 0: null, 1: 'seg', 2: 'ter', 3: 'qua', 4: 'qui', 5: 'sex', 6: 'sab' }
@@ -28,8 +28,25 @@ function BadgeStatus({ status }) {
   )
 }
 
+// ── Dashboard card ──────────────────────────────────────────────────────────
+function CardDash({ label, valor, icon, color, bg, ativo, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      flex: '1 1 120px', minWidth: 110, background: ativo ? bg : 'rgba(255,255,255,0.03)',
+      border: `2px solid ${ativo ? color : 'rgba(255,255,255,0.06)'}`,
+      borderRadius: 14, padding: '16px 14px', cursor: 'pointer',
+      display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6,
+      transition: 'all 0.18s', textAlign: 'left',
+    }}>
+      <span style={{ fontSize: '1.4rem' }}>{icon}</span>
+      <span style={{ fontSize: '1.6rem', fontWeight: 800, color: ativo ? color : '#e2e8f0', lineHeight: 1 }}>{valor}</span>
+      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: ativo ? color : '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
+    </button>
+  )
+}
+
 export default function Consultas() {
-  const { user } = useAuth()  // user.clinica_id vem do JWT decodificado
+  const { user } = useAuth()
   const [consultas,     setConsultas]     = useState([])
   const [pacientes,     setPacientes]     = useState([])
   const [medicos,       setMedicos]       = useState([])
@@ -38,6 +55,7 @@ export default function Consultas() {
   const [editando,      setEditando]      = useState(null)
   const [salvando,      setSalvando]      = useState(false)
   const [busca,         setBusca]         = useState('')
+  const [filtroStatus,  setFiltroStatus]  = useState('todos')
   const [form,          setForm]          = useState(FORM_INICIAL)
   const [enviandoWpp,   setEnviandoWpp]   = useState(null)
   const [enviandoEmail, setEnviandoEmail] = useState(null)
@@ -61,6 +79,14 @@ export default function Consultas() {
     return (p?.celular || p?.telefone || '').replace(/\D/g, '')
   }
 
+  // ── Contadores para o dashboard ──
+  const contadores = useMemo(() => {
+    const total = consultas.length
+    const porStatus = Object.fromEntries(Object.keys(STATUS_CFG).map(s => [s, 0]))
+    consultas.forEach(c => { if (porStatus[c.status] !== undefined) porStatus[c.status]++ })
+    return { total, ...porStatus }
+  }, [consultas])
+
   const enviarWhatsApp = async (c) => {
     const telefone = telefonePaciente(c.paciente_id)
     if (!telefone) { toast('⚠️ Paciente sem telefone cadastrado.', 'error'); return }
@@ -82,13 +108,9 @@ export default function Consultas() {
     setEnviandoEmail(c.id)
     try {
       await enviarEmailConsulta({
-        para:        email,
-        paciente:    nomePaciente(c.paciente_id),
-        clinica_id:  user?.clinica_id || null,
-        medico:      nomeMedico(c.medico_id),
-        data:        dataFormatada,
-        hora:        c.horario || 'A definir',
-        consulta_id: c.id,
+        para: email, paciente: nomePaciente(c.paciente_id),
+        clinica_id: user?.clinica_id || null, medico: nomeMedico(c.medico_id),
+        data: dataFormatada, hora: c.horario || 'A definir', consulta_id: c.id,
       })
       toast(`✉️ E-mail com link de confirmação enviado para ${email}!`, 'success')
     } catch (err) {
@@ -152,12 +174,14 @@ export default function Consultas() {
     } catch (err) { toast('Erro: ' + (err.response?.data?.error || err.message), 'error') }
   }
 
-  const filtradas = consultas.filter(c =>
-    !busca ||
-    nomePaciente(c.paciente_id).toLowerCase().includes(busca.toLowerCase()) ||
-    nomeMedico(c.medico_id).toLowerCase().includes(busca.toLowerCase()) ||
-    c.motivo?.toLowerCase().includes(busca.toLowerCase())
-  )
+  const filtradas = useMemo(() => consultas.filter(c => {
+    const matchStatus = filtroStatus === 'todos' || c.status === filtroStatus
+    const matchBusca  = !busca ||
+      nomePaciente(c.paciente_id).toLowerCase().includes(busca.toLowerCase()) ||
+      nomeMedico(c.medico_id).toLowerCase().includes(busca.toLowerCase()) ||
+      c.motivo?.toLowerCase().includes(busca.toLowerCase())
+    return matchStatus && matchBusca
+  }), [consultas, filtroStatus, busca, pacientes, medicos])
 
   const proximosStatus = {
     agendada:   ['confirmada'],
@@ -188,15 +212,66 @@ export default function Consultas() {
     <PageLayout title='📅 Consultas'>
       <ConfirmModalUI /><ToastUI />
 
+      {/* ── Dashboard ── */}
+      {!loading && (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
+          <CardDash
+            label='Total' valor={contadores.total} icon='📋' color='#e2e8f0'
+            bg='rgba(255,255,255,0.06)'
+            ativo={filtroStatus === 'todos'}
+            onClick={() => setFiltroStatus('todos')}
+          />
+          {Object.entries(STATUS_CFG).map(([key, cfg]) => (
+            <CardDash
+              key={key}
+              label={cfg.label} valor={contadores[key] || 0}
+              icon={cfg.icon} color={cfg.color} bg={cfg.bg}
+              ativo={filtroStatus === key}
+              onClick={() => setFiltroStatus(filtroStatus === key ? 'todos' : key)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ── Toolbar ── */}
       <div className='inner-toolbar'>
-        <input className='form-input' style={{ maxWidth: '280px' }}
-          placeholder='🔍 Buscar por paciente, médico ou motivo...'
+        <input className='form-input' style={{ maxWidth: '260px' }}
+          placeholder='🔍 Buscar paciente, médico ou motivo...'
           value={busca} onChange={e => setBusca(e.target.value)} />
+
+        {/* Filtro por status (select compacto) */}
+        <select className='form-select' style={{ maxWidth: '180px' }}
+          value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
+          <option value='todos'>Todos os status</option>
+          {Object.entries(STATUS_CFG).map(([k, v]) => (
+            <option key={k} value={k}>{v.icon} {v.label}</option>
+          ))}
+        </select>
+
         <button className={`btn ${mostrarForm ? 'btn-secondary' : 'btn-primary'}`}
           onClick={() => { if (mostrarForm) { setMostrarForm(false); setEditando(null); setForm(FORM_INICIAL) } else abrirNovo() }}>
           {mostrarForm ? '✖ Cancelar' : '+ Nova Consulta'}
         </button>
       </div>
+
+      {/* Tag de filtro ativo */}
+      {filtroStatus !== 'todos' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Filtrando por:</span>
+          <span style={{
+            background: STATUS_CFG[filtroStatus]?.bg,
+            color: STATUS_CFG[filtroStatus]?.color,
+            border: `1px solid ${STATUS_CFG[filtroStatus]?.color}44`,
+            padding: '3px 12px', borderRadius: 20, fontSize: '0.78rem', fontWeight: 700
+          }}>
+            {STATUS_CFG[filtroStatus]?.icon} {STATUS_CFG[filtroStatus]?.label} ({filtradas.length})
+          </span>
+          <button onClick={() => setFiltroStatus('todos')}
+            style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '0.8rem' }}>
+            ✕ Limpar
+          </button>
+        </div>
+      )}
 
       {mostrarForm && (
         <div className='inner-card'>
@@ -261,18 +336,24 @@ export default function Consultas() {
           <table className='data-table'>
             <thead><tr><th>Data</th><th>Horário</th><th>Paciente</th><th>Médico</th><th>Motivo</th><th>Status</th><th>Ações</th></tr></thead>
             <tbody>
-              {filtradas.length === 0 && <tr><td colSpan={7} style={{textAlign:'center',color:'#64748b',padding:'2rem'}}>Nenhuma consulta encontrada.</td></tr>}
+              {filtradas.length === 0 && (
+                <tr><td colSpan={7} style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>
+                  {filtroStatus !== 'todos'
+                    ? `Nenhuma consulta com status "${STATUS_CFG[filtroStatus]?.label}".`
+                    : 'Nenhuma consulta encontrada.'}
+                </td></tr>
+              )}
               {filtradas.map(c => (
                 <tr key={c.id}>
-                  <td style={{whiteSpace:'nowrap',fontSize:'0.85rem'}}>{c.data_consulta ? new Date(c.data_consulta+'T12:00:00').toLocaleDateString('pt-BR') : '—'}</td>
-                  <td style={{color:'#94a3b8'}}>{c.horario||'—'}</td>
-                  <td style={{fontWeight:600}}>{nomePaciente(c.paciente_id)}</td>
-                  <td style={{fontSize:'0.85rem',color:'#94a3b8'}}>{nomeMedico(c.medico_id)}</td>
-                  <td style={{fontSize:'0.82rem',maxWidth:'180px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.motivo}</td>
+                  <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>{c.data_consulta ? new Date(c.data_consulta+'T12:00:00').toLocaleDateString('pt-BR') : '—'}</td>
+                  <td style={{ color: '#94a3b8' }}>{c.horario||'—'}</td>
+                  <td style={{ fontWeight: 600 }}>{nomePaciente(c.paciente_id)}</td>
+                  <td style={{ fontSize: '0.85rem', color: '#94a3b8' }}>{nomeMedico(c.medico_id)}</td>
+                  <td style={{ fontSize: '0.82rem', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.motivo}</td>
                   <td><BadgeStatus status={c.status} /></td>
                   <td>
-                    <div style={{display:'flex',gap:'5px',flexWrap:'wrap'}}>
-                      <button className='btn btn-secondary' style={{fontSize:'0.75rem',padding:'4px 8px'}} onClick={() => abrirEditar(c)}>✏️</button>
+                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                      <button className='btn btn-secondary' style={{ fontSize: '0.75rem', padding: '4px 8px' }} onClick={() => abrirEditar(c)}>✏️</button>
                       <button title={`WhatsApp — ${nomePaciente(c.paciente_id)}`}
                         disabled={enviandoWpp === c.id} onClick={() => enviarWhatsApp(c)}
                         style={btnAcao('#25d366', enviandoWpp === c.id)}>
@@ -284,11 +365,11 @@ export default function Consultas() {
                         {enviandoEmail === c.id ? '⏳' : '✉️'}
                       </button>
                       {(proximosStatus[c.status] || []).map(ns => (
-                        <button key={ns} className='btn btn-primary' style={{fontSize:'0.72rem',padding:'4px 8px'}} onClick={() => alterarStatus(c.id, ns)}>
+                        <button key={ns} className='btn btn-primary' style={{ fontSize: '0.72rem', padding: '4px 8px' }} onClick={() => alterarStatus(c.id, ns)}>
                           → {STATUS_CFG[ns]?.label}
                         </button>
                       ))}
-                      <button className='btn btn-danger' style={{fontSize:'0.75rem',padding:'4px 8px'}} onClick={() => excluir(c.id)}>🗑️</button>
+                      <button className='btn btn-danger' style={{ fontSize: '0.75rem', padding: '4px 8px' }} onClick={() => excluir(c.id)}>🗑️</button>
                     </div>
                   </td>
                 </tr>
