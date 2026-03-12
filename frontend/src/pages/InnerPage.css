@@ -3,6 +3,14 @@
    Herda o tema dark do PageLayout
    ================================================ */
 
+.inner-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
 .inner-card {
   background: linear-gradient(145deg, #111827, #0f172a);
   border: 1px solid rgba(255,255,255,0.06);
@@ -11,6 +19,10 @@
   margin-bottom: 24px;
   box-shadow: 0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04);
   color: #e2e8f0;
+  /* fix: evita estouro horizontal */
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 .inner-card-title {
   font-size: 0.78rem;
@@ -21,8 +33,22 @@
   letter-spacing: 0.06em;
 }
 
-.inner-form { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-.form-field { display: flex; flex-direction: column; gap: 7px; }
+.inner-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* fix: impede que campos de grid estourem o container */
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  box-sizing: border-box;
+}
 .form-field--full { grid-column: 1 / -1; }
 .form-label {
   font-size: 0.72rem;
@@ -43,6 +69,11 @@
   font-family: inherit;
   outline: none;
   transition: all 0.18s;
+  /* fix: garante que não ultrapassem o pai */
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
 }
 .form-input::placeholder { color: #475569; }
 .form-input:focus, .form-select:focus, .form-textarea:focus {
@@ -52,10 +83,22 @@
 }
 .form-select option { background: #1e293b; color: #e2e8f0; }
 .form-textarea { resize: vertical; }
+
+.form-section-divider {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 10px;
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
 .form-actions {
   grid-column: 1 / -1;
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
   margin-top: 6px;
   padding-top: 10px;
   border-top: 1px solid rgba(255,255,255,0.05);
@@ -70,3 +113,13 @@
   border: 1px solid rgba(255,255,255,0.06);
 }
 .page-vazio-icon { font-size: 3rem; display: block; margin-bottom: 1rem; opacity: 0.5; }
+
+/* Responsivo: 1 coluna em telas pequenas */
+@media (max-width: 600px) {
+  .inner-form {
+    grid-template-columns: 1fr;
+  }
+  .form-field--full {
+    grid-column: 1;
+  }
+}
