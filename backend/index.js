@@ -21,6 +21,7 @@ import pdfRoutes            from './routes/pdf.js'
 import retornosRoutes       from './routes/retornos.js'
 import posAtendimentoRoutes from './routes/posAtendimento.js'
 import whatsappRoutes       from './src/routes/whatsappRoutes.js'
+import emailRoutes          from './src/routes/emailRoutes.js'
 
 const app  = express()
 const port = process.env.PORT || 4000
@@ -72,5 +73,6 @@ app.use('/pdf',              pdfRoutes)
 app.use('/retornos',         retornosRoutes)
 app.use('/pos-atendimento',  posAtendimentoRoutes)
 app.use('/api/whatsapp',     whatsappRoutes)
+app.use('/api/email',        emailRoutes)
 
 app.listen(port, () => console.log(`🚀 Servidor rodando na porta ${port}`))
