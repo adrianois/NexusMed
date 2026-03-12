@@ -3,6 +3,7 @@ import api from '../api'
 import PageLayout from '../components/PageLayout'
 import { useConfirm } from '../components/ConfirmModal'
 import { useToast } from '../components/Toast'
+import { enviarConfirmacaoWhatsApp } from '../services/whatsappService'
 import './InnerPage.css'
 
 const STATUS_CFG = {
@@ -28,15 +29,16 @@ function BadgeStatus({ status }) {
 }
 
 export default function Consultas() {
-  const [consultas,   setConsultas]   = useState([])
-  const [pacientes,   setPacientes]   = useState([])
-  const [medicos,     setMedicos]     = useState([])
-  const [loading,     setLoading]     = useState(true)
-  const [mostrarForm, setMostrarForm] = useState(false)
-  const [editando,    setEditando]    = useState(null)
-  const [salvando,    setSalvando]    = useState(false)
-  const [busca,       setBusca]       = useState('')
-  const [form,        setForm]        = useState(FORM_INICIAL)
+  const [consultas,     setConsultas]     = useState([])
+  const [pacientes,     setPacientes]     = useState([])
+  const [medicos,       setMedicos]       = useState([])
+  const [loading,       setLoading]       = useState(true)
+  const [mostrarForm,   setMostrarForm]   = useState(false)
+  const [editando,      setEditando]      = useState(null)
+  const [salvando,      setSalvando]      = useState(false)
+  const [busca,         setBusca]         = useState('')
+  const [form,          setForm]          = useState(FORM_INICIAL)
+  const [enviandoWpp,   setEnviandoWpp]   = useState(null) // id da consulta em envio
   const { confirmar, ConfirmModalUI } = useConfirm()
   const { toast, ToastUI }            = useToast()
 
@@ -49,30 +51,61 @@ export default function Consultas() {
   }
   useEffect(() => { carregar() }, [])
 
-  const nomePaciente = id => pacientes.find(p => p.id === id)?.nome || '—'
-  const nomeMedico   = id => medicos.find(m => m.id === id)?.nome  || '—'
+  const nomePaciente   = id => pacientes.find(p => p.id === id)?.nome  || '—'
+  const nomeMedico     = id => medicos.find(m => m.id === id)?.nome    || '—'
+  const telefonePaciente = id => {
+    const p = pacientes.find(p => p.id === id)
+    // Aceita telefone ou celular, remove tudo que não for número
+    const raw = p?.celular || p?.telefone || ''
+    return raw.replace(/\D/g, '')
+  }
 
-  // ─── Calcula horários disponíveis para o médico+data selecionados ───────────────
+  // ─── Envia dados da consulta via WhatsApp ───────────────────────────────────
+  const enviarWhatsApp = async (c) => {
+    const telefone = telefonePaciente(c.paciente_id)
+    if (!telefone) {
+      toast('⚠️ Paciente sem telefone cadastrado.', 'error')
+      return
+    }
+
+    // Garante DDI 55 (Brasil)
+    const phone = telefone.startsWith('55') ? telefone : `55${telefone}`
+    const dataFormatada = c.data_consulta
+      ? new Date(c.data_consulta + 'T12:00:00').toLocaleDateString('pt-BR')
+      : '—'
+
+    setEnviandoWpp(c.id)
+    try {
+      await enviarConfirmacaoWhatsApp({
+        phone,
+        paciente:  nomePaciente(c.paciente_id),
+        data:      dataFormatada,
+        hora:      c.horario || 'A definir',
+        medico:    nomeMedico(c.medico_id),
+        clinica:   'NexusMed',
+      })
+      toast('✅ Mensagem enviada via WhatsApp!', 'success')
+    } catch (err) {
+      toast('Erro ao enviar WhatsApp: ' + (err.response?.data?.error || err.message), 'error')
+    } finally {
+      setEnviandoWpp(null)
+    }
+  }
+
+  // ─── Calcula horários disponíveis para o médico+data selecionados ───────────
   const horariosDisponiveis = useMemo(() => {
     if (!form.medico_id || !form.data_consulta) return []
-
     const medico = medicos.find(m => m.id === form.medico_id)
     if (!medico?.agenda) return []
-
-    // Descobre o dia da semana da data selecionada
     const [ano, mes, dia] = form.data_consulta.split('-').map(Number)
     const diaSemana = new Date(ano, mes - 1, dia).getDay()
     const chave = DIA_MAP[diaSemana]
-    if (!chave) return [] // domingo sem agenda
-
+    if (!chave) return []
     const horariosAgenda = medico.agenda[chave] || []
     if (horariosAgenda.length === 0) return []
-
-    // Horários já ocupados nessa data (excluindo a própria consulta editada)
     const ocupados = consultas
       .filter(c => c.medico_id === form.medico_id && c.data_consulta === form.data_consulta && c.id !== editando)
       .map(c => c.horario)
-
     return horariosAgenda.map(h => ({ hora: h, ocupado: ocupados.includes(h) }))
   }, [form.medico_id, form.data_consulta, medicos, consultas, editando])
 
@@ -81,7 +114,6 @@ export default function Consultas() {
     setForm(prev => ({
       ...prev,
       [name]: value,
-      // Limpa horário ao trocar médico ou data
       ...(name === 'medico_id' || name === 'data_consulta' ? { horario: '' } : {})
     }))
   }
@@ -140,7 +172,6 @@ export default function Consultas() {
     liberada:   [],
   }
 
-  // Dica de status do campo horário
   const dicaHorario = () => {
     if (!form.medico_id)       return { texto: 'Selecione um médico primeiro', cor: '#475569' }
     if (!form.data_consulta)   return { texto: 'Selecione uma data primeiro',  cor: '#475569' }
@@ -196,8 +227,6 @@ export default function Consultas() {
                 Horário
                 <span style={{ marginLeft: '8px', fontSize: '0.72rem', color: dica.cor, fontWeight: 400 }}>{dica.texto}</span>
               </label>
-
-              {/* Se há horários na agenda: mostra select com disponíveis */}
               {horariosDisponiveis.length > 0 ? (
                 <select className='form-select' name='horario' value={form.horario} onChange={handleChange}>
                   <option value=''>Selecione o horário</option>
@@ -208,7 +237,6 @@ export default function Consultas() {
                   ))}
                 </select>
               ) : (
-                // Fallback: input livre se não há agenda configurada
                 <input className='form-input' type='time' name='horario' value={form.horario} onChange={handleChange} />
               )}
             </div>
@@ -251,6 +279,28 @@ export default function Consultas() {
                   <td>
                     <div style={{display:'flex',gap:'5px',flexWrap:'wrap'}}>
                       <button className='btn btn-secondary' style={{fontSize:'0.75rem',padding:'4px 8px'}} onClick={() => abrirEditar(c)}>✏️</button>
+
+                      {/* ── Atalho WhatsApp ── */}
+                      <button
+                        title='Enviar dados da consulta via WhatsApp'
+                        disabled={enviandoWpp === c.id}
+                        onClick={() => enviarWhatsApp(c)}
+                        style={{
+                          fontSize: '0.75rem',
+                          padding: '4px 8px',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: enviandoWpp === c.id ? 'not-allowed' : 'pointer',
+                          background: enviandoWpp === c.id ? '#1a2e1a' : '#25d366',
+                          color: '#fff',
+                          fontWeight: 700,
+                          opacity: enviandoWpp === c.id ? 0.6 : 1,
+                          transition: 'opacity 0.2s',
+                        }}
+                      >
+                        {enviandoWpp === c.id ? '⏳' : '📲'}
+                      </button>
+
                       {(proximosStatus[c.status] || []).map(ns => (
                         <button key={ns} className='btn btn-primary' style={{fontSize:'0.72rem',padding:'4px 8px'}} onClick={() => alterarStatus(c.id, ns)}>
                           → {STATUS_CFG[ns]?.label}
