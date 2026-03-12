@@ -32,6 +32,24 @@ const SINAIS = [
   { name: 'saturacao_oxigenio',  label: 'Saturação O₂',    placeholder: '98 %',   icon: '💧'  },
 ]
 
+// Estilo reutilizável para o botão PDF
+const btnPdfStyle = (gerando) => ({
+  background: 'rgba(33,128,141,0.15)',
+  border: '1px solid rgba(33,128,141,0.5)',
+  borderRadius: '8px',
+  color: '#2dd4bf',
+  fontSize: '0.82rem',
+  fontWeight: 700,
+  padding: '7px 14px',
+  whiteSpace: 'nowrap',
+  cursor: gerando ? 'not-allowed' : 'pointer',
+  opacity: gerando ? 0.6 : 1,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '5px',
+  transition: 'all 0.2s',
+})
+
 function Badge({ color, bg, label }) {
   return (
     <span style={{
@@ -174,7 +192,7 @@ export default function Triagem() {
       {/* Toast de sucesso */}
       {toast && <ToastSucesso mensagem={toast} onClose={() => setToast(null)} />}
 
-      {/* ── Cards resumo ───────────────────────────────────────── */}
+      {/* Cards resumo */}
       {dashboard && (
         <div style={{
           display: 'grid',
@@ -203,7 +221,7 @@ export default function Triagem() {
         </div>
       )}
 
-      {/* ── Controles ──────────────────────────────────────────── */}
+      {/* Controles */}
       <div className='inner-card' style={{ padding: '14px 18px', marginBottom: '20px' }}>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div>
@@ -227,7 +245,7 @@ export default function Triagem() {
         </div>
       </div>
 
-      {/* ── Fila ────────────────────────────────────────────────── */}
+      {/* Fila */}
       {loading && <p className='page-loading'>⏳ Carregando fila de triagem...</p>}
 
       {!loading && consultasFiltradas.length === 0 && (
@@ -277,7 +295,7 @@ export default function Triagem() {
                   )}
                 </div>
 
-                {/* Sinais vitais resumidos — apenas para triados */}
+                {/* Sinais vitais resumidos — apenas triados */}
                 {c.status === 'triado' && (
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', fontSize: '0.74rem', color: '#64748b' }}>
                     {c.triagem_pressao       && <span>🩸 {c.triagem_pressao}</span>}
@@ -287,17 +305,18 @@ export default function Triagem() {
                   </div>
                 )}
 
-                {/* Botões — PDF disponível para TODOS os status */}
-                <div style={{ display: 'flex', gap: '8px' }}>
+                {/* Botões */}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {/* Botão PDF — sempre visível, estilo inline garantido */}
                   <button
-                    className='btn btn-outline'
-                    style={{ fontSize: '0.82rem', padding: '7px 14px', whiteSpace: 'nowrap' }}
+                    style={btnPdfStyle(gerando)}
                     onClick={() => gerarPDF(c)}
                     disabled={gerando}
                     title='Gerar PDF com dados da triagem'
                   >
-                    {gerando ? '⏳ Gerando...' : '📄 PDF'}
+                    📄 {gerando ? 'Gerando...' : 'Gerar PDF'}
                   </button>
+
                   <button
                     className={c.status === 'triado' ? 'btn btn-secondary' : 'btn btn-primary'}
                     style={{ fontSize: '0.82rem', padding: '7px 16px', whiteSpace: 'nowrap' }}
@@ -316,7 +335,7 @@ export default function Triagem() {
         </div>
       )}
 
-      {/* ── Modal de Triagem ───────────────────────────────────────── */}
+      {/* Modal de Triagem */}
       {modalId && consultaModal && (
         <div style={{
           position: 'fixed', inset: 0,
@@ -353,24 +372,19 @@ export default function Triagem() {
                 )}
               </div>
 
-              {/* Botões do cabeçalho — PDF sempre visível no modal */}
               <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                {/* Botão PDF no modal — sempre visível */}
                 <button
+                  style={{
+                    ...btnPdfStyle(gerando),
+                    fontSize: '0.9rem',
+                    padding: '8px 16px',
+                  }}
                   onClick={() => gerarPDF(consultaModal, false)}
                   disabled={gerando}
-                  style={{
-                    background: 'rgba(33, 128, 141, 0.2)',
-                    border: '1px solid rgba(33, 128, 141, 0.4)',
-                    borderRadius: '8px', color: '#32b8c6',
-                    fontSize: '0.9rem',
-                    cursor: gerando ? 'not-allowed' : 'pointer',
-                    padding: '8px 14px', fontWeight: 600,
-                    transition: 'all 0.2s', opacity: gerando ? 0.6 : 1,
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                  }}
                   title='Gerar PDF da triagem'
                 >
-                  {gerando ? '⏳' : '📄'} {gerando ? 'Gerando...' : 'Gerar PDF'}
+                  📄 {gerando ? 'Gerando...' : 'Gerar PDF'}
                 </button>
                 <button onClick={fecharModal} style={{
                   background: 'rgba(255,255,255,0.05)',
@@ -385,7 +399,7 @@ export default function Triagem() {
 
             <form onSubmit={salvarTriagem}>
 
-              {/* Sinais Vitais — 2 colunas */}
+              {/* Sinais Vitais */}
               <div style={{ marginBottom: '22px' }}>
                 {sectionTitle('🩺 Sinais Vitais')}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
