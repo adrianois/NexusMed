@@ -4,6 +4,13 @@ import api from '../../api'
 import PageLayout from '../../components/PageLayout'
 import { useAuth } from '../../context/AuthContext'
 
+// Remove prefixos "Dr", "Dr.", "Dra", "Dra." do início do nome
+function primeiroNome(nomeCompleto) {
+  if (!nomeCompleto) return ''
+  const semPrefixo = nomeCompleto.replace(/^(Dr\.?a?\.?\s*)/i, '').trim()
+  return semPrefixo.split(' ')[0] || nomeCompleto.split(' ')[0]
+}
+
 export default function MedicoDashboard() {
   const { user } = useAuth()
   const [stats, setStats] = useState({ consultas: 0, hoje: 0, pendentes: 0, pacientes: 0 })
@@ -42,7 +49,7 @@ export default function MedicoDashboard() {
   )
 
   return (
-    <PageLayout title={`👨‍⚕️ Olá, Dr(a). ${user?.nome?.split(' ')[0] || ''}`}>
+    <PageLayout title={`👨‍⚕️ Olá, Dr(a). ${primeiroNome(user?.nome)}`}>
 
       {/* Cards de estatísticas */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:'16px', marginBottom:'32px' }}>
