@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../api'
 
@@ -6,8 +6,12 @@ export default function ConfirmarConsulta() {
   const [params]   = useSearchParams()
   const [status,   setStatus]   = useState('carregando')
   const [mensagem, setMensagem] = useState('')
+  const jaExecutou = useRef(false) // impede dupla chamada no StrictMode do React 18
 
   useEffect(() => {
+    if (jaExecutou.current) return
+    jaExecutou.current = true
+
     const token = params.get('token')
     if (!token) { setStatus('erro'); setMensagem('Link inválido.'); return }
 
@@ -17,7 +21,6 @@ export default function ConfirmarConsulta() {
         else                   setStatus('sucesso')
       })
       .catch(err => {
-        // Backend retorna 410 com jaConfirmado:true quando já foi usado
         if (err.response?.data?.jaConfirmado) {
           setStatus('jaConfirmado')
           return
