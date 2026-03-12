@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api'
 import './PageLayout.css'
@@ -7,8 +7,25 @@ import './PageLayout.css'
 export default function PageLayout({ children, title }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [nomeClinica, setNomeClinica] = useState('')
   const [usaTriagem,  setUsaTriagem]  = useState(false)
+  const [menuAberto,  setMenuAberto]  = useState(false)
+
+  // Fecha o menu ao trocar de rota no mobile
+  useEffect(() => { setMenuAberto(false) }, [location.pathname])
+
+  // Fecha ao clicar fora do sidebar no mobile
+  useEffect(() => {
+    if (!menuAberto) return
+    const handler = (e) => {
+      if (!e.target.closest('.sidebar') && !e.target.closest('.hamburger-btn')) {
+        setMenuAberto(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuAberto])
 
   useEffect(() => {
     const perfil = user?.perfil
@@ -31,7 +48,6 @@ export default function PageLayout({ children, title }) {
 
   const perfil = user?.perfil
 
-  // ── Médico ──────────────────────────────────────────────────────────────────
   const menuMedico = [
     { to: '/medico',            icon: '🏥', label: 'Painel'                },
     { to: '/medico/agenda',     icon: '📅', label: 'Agenda'                },
@@ -42,7 +58,6 @@ export default function PageLayout({ children, title }) {
     { to: '/minha-senha',       icon: '🔐', label: 'Minha Senha'           },
   ]
 
-  // ── Admin ──────────────────────────────────────────────────────────────────
   const menuAdmin = [
     { to: '/admin',             icon: '🛡️', label: 'Painel Admin'     },
     { to: '/admin/clinicas',    icon: '🏥', label: 'Clínicas'         },
@@ -57,7 +72,6 @@ export default function PageLayout({ children, title }) {
     { to: '/minha-senha',       icon: '🔐', label: 'Minha Senha'      },
   ]
 
-  // ── Gestor ──────────────────────────────────────────────────────────────────
   const menuGestorBase = [
     { to: '/gestor',              icon: '📊', label: 'Painel Gestor'    },
     { to: '/gestor/usuarios',     icon: '⏳', label: 'Aprovar Usuários' },
@@ -71,7 +85,6 @@ export default function PageLayout({ children, title }) {
     { to: '/minha-senha',         icon: '🔐', label: 'Minha Senha'      },
   ]
 
-  // ── Normal (recepção) ──────────────────────────────────────────────────────
   const menuNormalBase = [
     { to: '/dashboard',         icon: '🏠', label: 'Início'          },
     { to: '/medicos',           icon: '👨‍⚕️', label: 'Médicos'         },
@@ -118,10 +131,32 @@ export default function PageLayout({ children, title }) {
 
   return (
     <div className='layout'>
-      <aside className='sidebar'>
+
+      {/* ── Botão Hamburger (só mobile) ── */}
+      <button
+        className='hamburger-btn'
+        onClick={() => setMenuAberto(o => !o)}
+        aria-label='Abrir menu'
+      >
+        <span /><span /><span />
+      </button>
+
+      {/* ── Overlay escuro ao abrir sidebar no mobile ── */}
+      {menuAberto && (
+        <div className='sidebar-overlay' onClick={() => setMenuAberto(false)} />
+      )}
+
+      {/* ── Sidebar ── */}
+      <aside className={`sidebar ${menuAberto ? 'sidebar--open' : ''}`}>
         <div className='sidebar-logo' onClick={() => navigate(homeRoute)}>
           <span className='sidebar-logo-icon'>🏥</span>
           <span className='sidebar-logo-text'>NexusMed</span>
+          {/* Botão fechar dentro do sidebar (mobile) */}
+          <button
+            className='sidebar-close-btn'
+            onClick={e => { e.stopPropagation(); setMenuAberto(false) }}
+            aria-label='Fechar menu'
+          >✕</button>
         </div>
 
         {mostrarBannerClinica && (
@@ -157,6 +192,7 @@ export default function PageLayout({ children, title }) {
         </div>
       </aside>
 
+      {/* ── Conteúdo principal ── */}
       <main className='content'>
         <div className='page-header'><h2 className='page-title'>{title}</h2></div>
         <div className='page-body'>{children}</div>
