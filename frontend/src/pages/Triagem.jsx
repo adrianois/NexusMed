@@ -43,6 +43,29 @@ function Badge({ color, bg, label }) {
   )
 }
 
+function ToastSucesso({ mensagem, onClose }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 3000)
+    return () => clearTimeout(t)
+  }, [onClose])
+  return (
+    <div style={{
+      position: 'fixed', bottom: '24px', right: '24px',
+      background: 'linear-gradient(135deg, #14532d, #166534)',
+      border: '1px solid #22c55e55',
+      borderLeft: '4px solid #4ade80',
+      borderRadius: '12px', padding: '14px 20px',
+      color: '#bbf7d0', fontSize: '0.9rem', fontWeight: 600,
+      boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+      zIndex: 9999, display: 'flex', alignItems: 'center', gap: '10px',
+      animation: 'fadeInUp 0.3s ease',
+    }}>
+      <span style={{ fontSize: '1.2rem' }}>✅</span>
+      {mensagem}
+    </div>
+  )
+}
+
 export default function Triagem() {
   const [consultas,    setConsultas]    = useState([])
   const [pacientes,    setPacientes]    = useState([])
@@ -55,6 +78,7 @@ export default function Triagem() {
   const [dashboard,    setDashboard]    = useState(null)
   const [filtroStatus, setFiltroStatus] = useState('')
   const [gerando,      setGerando]      = useState(false)
+  const [toast,        setToast]        = useState(null)
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -75,10 +99,10 @@ export default function Triagem() {
 
   useEffect(() => { carregar() }, [carregar])
 
-  const nomePaciente = id => pacientes.find(p => p.id === id)?.nome || '—'
-  const nomeMedico   = id => medicos.find(m => m.id === id)?.nome  || '—'
+  const nomePaciente  = id => pacientes.find(p => p.id === id)?.nome || '—'
+  const nomeMedico    = id => medicos.find(m => m.id === id)?.nome  || '—'
   const obterPaciente = id => pacientes.find(p => p.id === id)
-  const obterMedico = id => medicos.find(m => m.id === id)
+  const obterMedico   = id => medicos.find(m => m.id === id)
 
   const abrirTriagem = async (consulta) => {
     if (consulta.status === 'confirmada') {
@@ -99,12 +123,14 @@ export default function Triagem() {
     carregar()
   }
 
-  const gerarPDF = (consulta) => {
+  const gerarPDF = (consulta, fecharDepois = false) => {
     try {
       setGerando(true)
       const paciente = obterPaciente(consulta.paciente_id)
-      const medico = obterMedico(consulta.medico_id)
+      const medico   = obterMedico(consulta.medico_id)
       generateTriagemPDF(consulta, paciente, medico)
+      setToast(`PDF de ${paciente?.nome || 'paciente'} gerado com sucesso!`)
+      if (fecharDepois) fecharModal()
     } catch (err) {
       console.error('Erro ao gerar PDF:', err)
       alert('Erro ao gerar PDF: ' + err.message)
@@ -134,7 +160,6 @@ export default function Triagem() {
 
   const consultaModal = consultas.find(c => c.id === modalId)
 
-  // ─── helpers de estilo ───────────────────────────────────────────────────
   const sectionTitle = (label) => (
     <div style={{
       fontSize: '0.68rem', fontWeight: 700, color: '#60a5fa',
@@ -147,7 +172,10 @@ export default function Triagem() {
   return (
     <PageLayout title='🩺 Triagem / Pré-atendimento'>
 
-      {/* ── Cards resumo ───────────────────────────────────── */}
+      {/* Toast de sucesso */}
+      {toast && <ToastSucesso mensagem={toast} onClose={() => setToast(null)} />}
+
+      {/* ── Cards resumo ────────────────────────────────────────────── */}
       {dashboard && (
         <div style={{
           display: 'grid',
@@ -176,7 +204,7 @@ export default function Triagem() {
         </div>
       )}
 
-      {/* ── Controles ──────────────────────────────────────── */}
+      {/* ── Controles ─────────────────────────────────────────────── */}
       <div className='inner-card' style={{ padding: '14px 18px', marginBottom: '20px' }}>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div>
@@ -200,7 +228,7 @@ export default function Triagem() {
         </div>
       </div>
 
-      {/* ── Fila ───────────────────────────────────────────── */}
+      {/* ── Fila ─────────────────────────────────────────────────────── */}
       {loading && <p className='page-loading'>⏳ Carregando fila de triagem...</p>}
 
       {!loading && consultasFiltradas.length === 0 && (
@@ -269,7 +297,7 @@ export default function Triagem() {
                       disabled={gerando}
                       title='Gerar PDF com dados da triagem'
                     >
-                      {gerando ? '⏳' : '📄'} PDF
+                      {gerando ? '⏳ Gerando...' : '📄 PDF'}
                     </button>
                   )}
                   <button
@@ -288,7 +316,7 @@ export default function Triagem() {
         </div>
       )}
 
-      {/* ── Modal de Triagem ──────────────────────────────── */}
+      {/* ── Modal de Triagem ──────────────────────────────────────────── */}
       {modalId && consultaModal && (
         <div style={{
           position: 'fixed', inset: 0,
@@ -303,7 +331,7 @@ export default function Triagem() {
             borderRadius: '20px',
             padding: '28px 32px',
             width: '100%',
-            maxWidth: '680px',       /* ← mais largo */
+            maxWidth: '680px',
             maxHeight: '92vh',
             overflowY: 'auto',
             boxShadow: '0 32px 64px rgba(0,0,0,0.7)',
@@ -327,16 +355,18 @@ export default function Triagem() {
               <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
                 {consultaModal.status === 'triado' && (
                   <button
-                    onClick={() => { gerarPDF(consultaModal); fecharModal() }}
+                    onClick={() => gerarPDF(consultaModal, true)}
+                    disabled={gerando}
                     style={{
                       background: 'rgba(33, 128, 141, 0.2)', border: '1px solid rgba(33, 128, 141, 0.4)',
                       borderRadius: '8px', color: '#32b8c6',
-                      fontSize: '0.9rem', cursor: 'pointer', padding: '8px 12px',
-                      fontWeight: 600, transition: 'all 0.2s',
+                      fontSize: '0.9rem', cursor: gerando ? 'not-allowed' : 'pointer', padding: '8px 14px',
+                      fontWeight: 600, transition: 'all 0.2s', opacity: gerando ? 0.6 : 1,
+                      display: 'flex', alignItems: 'center', gap: '6px',
                     }}
                     title='Gerar PDF da triagem'
                   >
-                    📄 Gerar PDF
+                    {gerando ? '⏳' : '📄'} {gerando ? 'Gerando...' : 'Gerar PDF'}
                   </button>
                 )}
                 <button onClick={fecharModal} style={{
