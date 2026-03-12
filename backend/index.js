@@ -1,7 +1,7 @@
 import 'dotenv/config'
 
-import express from 'express'
-import cors from 'cors'
+import express    from 'express'
+import cors       from 'cors'
 import bodyParser from 'body-parser'
 
 import authRoutes           from './routes/auth.js'
@@ -12,6 +12,7 @@ import medicosRoutes        from './routes/medicos.js'
 import pacientesRoutes      from './routes/pacientes.js'
 import consultasRoutes      from './routes/consultas.js'
 import prontuariosRoutes    from './routes/prontuarios.js'
+import evolucoesRoutes      from './routes/evolucoes.js'
 import clinicasRoutes       from './routes/clinicas.js'
 import logsRoutes           from './routes/logs.js'
 import usuariosRoutes       from './routes/usuarios.js'
@@ -38,16 +39,13 @@ const corsOptions = {
       callback(null, true)
     } else {
       const allowed = (process.env.FRONTEND_URL || '').split(',')
-      if (allowed.some(u => origin.startsWith(u.trim()))) {
-        callback(null, true)
-      } else {
-        callback(new Error('CORS: origem nao permitida: ' + origin))
-      }
+      if (allowed.some(u => origin.startsWith(u.trim()))) callback(null, true)
+      else callback(new Error('CORS: origem nao permitida: ' + origin))
     }
   },
   methods: ['GET','POST','PUT','DELETE','PATCH','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization'],
-  credentials: true
+  credentials: true,
 }
 
 app.use(cors(corsOptions))
@@ -65,6 +63,7 @@ app.use('/medicos',          medicosRoutes)
 app.use('/pacientes',        pacientesRoutes)
 app.use('/consultas',        consultasRoutes)
 app.use('/prontuarios',      prontuariosRoutes)
+app.use('/evolucoes',        evolucoesRoutes)
 app.use('/clinicas',         clinicasRoutes)
 app.use('/logs',             logsRoutes)
 app.use('/usuarios',         usuariosRoutes)

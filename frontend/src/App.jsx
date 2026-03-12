@@ -36,6 +36,7 @@ import MedicoTriagem     from './pages/medico/MedicoTriagem'
 import MedicoAtendimento from './pages/medico/MedicoAtendimento'
 import MedicoHistorico   from './pages/medico/MedicoHistorico'
 import MedicoDocumentos  from './pages/medico/MedicoDocumentos'
+import MedicoEvolucao    from './pages/medico/MedicoEvolucao'
 
 const TODOS  = ['normal', 'gestor', 'admin', 'medico']
 const MEDICO = ['medico', 'gestor', 'admin']
@@ -47,16 +48,16 @@ export default function App() {
       <AuthProvider>
         <Routes>
           {/* Públicas */}
-          <Route path='/'                      element={<Login />} />
-          <Route path='/login'                 element={<Login />} />
-          <Route path='/register'              element={<Register />} />
-          <Route path='/aguardando-aprovacao'  element={<AguardandoAprovacao />} />
-          <Route path='/nao-autorizado'        element={<NaoAutorizado />} />
-          <Route path='/esqueci-senha'         element={<EsqueciSenha />} />
-          <Route path='/resetar-senha'         element={<ResetarSenha />} />
-          <Route path='/confirmar-consulta'    element={<ConfirmarConsulta />} />
+          <Route path='/'                     element={<Login />} />
+          <Route path='/login'                element={<Login />} />
+          <Route path='/register'             element={<Register />} />
+          <Route path='/aguardando-aprovacao' element={<AguardandoAprovacao />} />
+          <Route path='/nao-autorizado'       element={<NaoAutorizado />} />
+          <Route path='/esqueci-senha'        element={<EsqueciSenha />} />
+          <Route path='/resetar-senha'        element={<ResetarSenha />} />
+          <Route path='/confirmar-consulta'   element={<ConfirmarConsulta />} />
 
-          {/* Geral — normal / gestor / admin */}
+          {/* Geral */}
           <Route path='/dashboard'        element={<PrivateRoute perfis={GERAL}><Dashboard /></PrivateRoute>} />
           <Route path='/pacientes'        element={<PrivateRoute perfis={GERAL}><Pacientes /></PrivateRoute>} />
           <Route path='/consultas'        element={<PrivateRoute perfis={GERAL}><Consultas /></PrivateRoute>} />
@@ -86,6 +87,7 @@ export default function App() {
           <Route path='/medico/atendimento/:consulta_id' element={<PrivateRoute perfis={MEDICO}><MedicoAtendimento /></PrivateRoute>} />
           <Route path='/medico/historico'                element={<PrivateRoute perfis={MEDICO}><MedicoHistorico /></PrivateRoute>} />
           <Route path='/medico/documentos'               element={<PrivateRoute perfis={MEDICO}><MedicoDocumentos /></PrivateRoute>} />
+          <Route path='/medico/evolucao'                 element={<PrivateRoute perfis={MEDICO}><MedicoEvolucao /></PrivateRoute>} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
