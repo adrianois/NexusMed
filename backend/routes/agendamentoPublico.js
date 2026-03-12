@@ -8,7 +8,7 @@ const router = Router()
 router.get('/clinicas', async (_req, res) => {
   const { data, error } = await supabase
     .from('clinicas')
-    .select('id, nome, cidade, uf')
+    .select('id, nome, cidade')
     .eq('ativo', true)
     .order('nome')
   if (error) return res.status(500).json({ error: error.message })
@@ -34,7 +34,6 @@ router.get('/horarios', async (req, res) => {
   const { medico_id, data } = req.query
   if (!medico_id || !data) return res.status(400).json({ error: 'medico_id e data são obrigatórios.' })
 
-  // Busca horários já ocupados
   const { data: ocupados } = await supabase
     .from('consultas')
     .select('horario')
@@ -44,7 +43,6 @@ router.get('/horarios', async (req, res) => {
 
   const horariosOcupados = (ocupados || []).map(c => c.horario)
 
-  // Grade padrão 08:00 às 17:30 de 30 em 30 min
   const grade = []
   for (let h = 8; h < 18; h++) {
     for (let m of [0, 30]) {
@@ -63,7 +61,6 @@ router.post('/agendar', async (req, res) => {
   if (!clinica_id || !medico_id || !data_consulta || !horario || !motivo || !nome_paciente)
     return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' })
 
-  // Verifica se horário ainda está disponível
   const { data: conflito } = await supabase
     .from('consultas')
     .select('id')
@@ -76,7 +73,6 @@ router.post('/agendar', async (req, res) => {
   if (conflito?.length > 0)
     return res.status(409).json({ error: 'Este horário não está mais disponível. Escolha outro.' })
 
-  // Busca ou cria paciente pelo telefone/email
   let paciente_id = null
   if (telefone) {
     const { data: pacExistente } = await supabase
