@@ -28,15 +28,15 @@ function BadgeStatus({ status }) {
 }
 
 export default function Consultas() {
-  const [consultas,   setConsultas]   = useState([])
-  const [pacientes,   setPacientes]   = useState([])
-  const [medicos,     setMedicos]     = useState([])
-  const [loading,     setLoading]     = useState(true)
-  const [mostrarForm, setMostrarForm] = useState(false)
-  const [editando,    setEditando]    = useState(null)
-  const [salvando,    setSalvando]    = useState(false)
-  const [busca,       setBusca]       = useState('')
-  const [form,        setForm]        = useState(FORM_INICIAL)
+  const [consultas,     setConsultas]     = useState([])
+  const [pacientes,     setPacientes]     = useState([])
+  const [medicos,       setMedicos]       = useState([])
+  const [loading,       setLoading]       = useState(true)
+  const [mostrarForm,   setMostrarForm]   = useState(false)
+  const [editando,      setEditando]      = useState(null)
+  const [salvando,      setSalvando]      = useState(false)
+  const [busca,         setBusca]         = useState('')
+  const [form,          setForm]          = useState(FORM_INICIAL)
   const [enviandoWpp,   setEnviandoWpp]   = useState(null)
   const [enviandoEmail, setEnviandoEmail] = useState(null)
   const { confirmar, ConfirmModalUI } = useConfirm()
@@ -51,15 +51,14 @@ export default function Consultas() {
   }
   useEffect(() => { carregar() }, [])
 
-  const nomePaciente     = id => pacientes.find(p => p.id === id)?.nome    || '—'
-  const nomeMedico       = id => medicos.find(m => m.id === id)?.nome      || '—'
-  const emailPaciente    = id => pacientes.find(p => p.id === id)?.email   || ''
+  const nomePaciente     = id => pacientes.find(p => p.id === id)?.nome  || '—'
+  const nomeMedico       = id => medicos.find(m => m.id === id)?.nome    || '—'
+  const emailPaciente    = id => pacientes.find(p => p.id === id)?.email || ''
   const telefonePaciente = id => {
     const p = pacientes.find(p => p.id === id)
     return (p?.celular || p?.telefone || '').replace(/\D/g, '')
   }
 
-  // ─── Envia WhatsApp ─────────────────────────────────────────────────
   const enviarWhatsApp = async (c) => {
     const telefone = telefonePaciente(c.paciente_id)
     if (!telefone) { toast('⚠️ Paciente sem telefone cadastrado.', 'error'); return }
@@ -74,15 +73,22 @@ export default function Consultas() {
     } finally { setEnviandoWpp(null) }
   }
 
-  // ─── Envia E-mail ──────────────────────────────────────────────────
   const enviarEmail = async (c) => {
     const email = emailPaciente(c.paciente_id)
     if (!email) { toast('⚠️ Paciente sem e-mail cadastrado.', 'error'); return }
     const dataFormatada = c.data_consulta ? new Date(c.data_consulta + 'T12:00:00').toLocaleDateString('pt-BR') : '—'
     setEnviandoEmail(c.id)
     try {
-      await enviarEmailConsulta({ para: email, paciente: nomePaciente(c.paciente_id), clinica: 'NexusMed', medico: nomeMedico(c.medico_id), data: dataFormatada, hora: c.horario || 'A definir' })
-      toast(`✉️ E-mail enviado para ${email}!`, 'success')
+      await enviarEmailConsulta({
+        para:       email,
+        paciente:   nomePaciente(c.paciente_id),
+        clinica:    'NexusMed',
+        medico:     nomeMedico(c.medico_id),
+        data:       dataFormatada,
+        hora:       c.horario || 'A definir',
+        consulta_id: c.id,
+      })
+      toast(`✉️ E-mail com link de confirmação enviado para ${email}!`, 'success')
     } catch (err) {
       toast('Erro ao enviar e-mail: ' + (err.response?.data?.error || err.message), 'error')
     } finally { setEnviandoEmail(null) }
@@ -166,17 +172,14 @@ export default function Consultas() {
     const livres = horariosDisponiveis.filter(h => !h.ocupado).length
     return { texto: `${livres} horário${livres !== 1 ? 's' : ''} disponível${livres !== 1 ? 'is' : ''}`, cor: '#4ade80' }
   }
-
   const dica = dicaHorario()
 
-  // Estilo base para botões de ação rápida
   const btnAcao = (bg, disabled) => ({
     fontSize: '0.75rem', padding: '4px 8px', border: 'none', borderRadius: '6px',
     cursor: disabled ? 'not-allowed' : 'pointer',
     background: disabled ? '#1e293b' : bg,
     color: '#fff', fontWeight: 700,
-    opacity: disabled ? 0.5 : 1,
-    transition: 'opacity 0.2s',
+    opacity: disabled ? 0.5 : 1, transition: 'opacity 0.2s',
   })
 
   return (
@@ -267,38 +270,27 @@ export default function Consultas() {
                   <td><BadgeStatus status={c.status} /></td>
                   <td>
                     <div style={{display:'flex',gap:'5px',flexWrap:'wrap'}}>
-
-                      {/* Editar */}
                       <button className='btn btn-secondary' style={{fontSize:'0.75rem',padding:'4px 8px'}} onClick={() => abrirEditar(c)}>✏️</button>
 
                       {/* WhatsApp */}
-                      <button
-                        title={`Enviar WhatsApp para ${nomePaciente(c.paciente_id)}`}
-                        disabled={enviandoWpp === c.id}
-                        onClick={() => enviarWhatsApp(c)}
-                        style={btnAcao('#25d366', enviandoWpp === c.id)}
-                      >
+                      <button title={`WhatsApp — ${nomePaciente(c.paciente_id)}`}
+                        disabled={enviandoWpp === c.id} onClick={() => enviarWhatsApp(c)}
+                        style={btnAcao('#25d366', enviandoWpp === c.id)}>
                         {enviandoWpp === c.id ? '⏳' : '📲'}
                       </button>
 
-                      {/* E-mail */}
-                      <button
-                        title={`Enviar e-mail para ${nomePaciente(c.paciente_id)}`}
-                        disabled={enviandoEmail === c.id}
-                        onClick={() => enviarEmail(c)}
-                        style={btnAcao('#6366f1', enviandoEmail === c.id)}
-                      >
+                      {/* E-mail com link de confirmação */}
+                      <button title={`E-mail com link de confirmação — ${nomePaciente(c.paciente_id)}`}
+                        disabled={enviandoEmail === c.id} onClick={() => enviarEmail(c)}
+                        style={btnAcao('#6366f1', enviandoEmail === c.id)}>
                         {enviandoEmail === c.id ? '⏳' : '✉️'}
                       </button>
 
-                      {/* Próximos status */}
                       {(proximosStatus[c.status] || []).map(ns => (
                         <button key={ns} className='btn btn-primary' style={{fontSize:'0.72rem',padding:'4px 8px'}} onClick={() => alterarStatus(c.id, ns)}>
                           → {STATUS_CFG[ns]?.label}
                         </button>
                       ))}
-
-                      {/* Excluir */}
                       <button className='btn btn-danger' style={{fontSize:'0.75rem',padding:'4px 8px'}} onClick={() => excluir(c.id)}>🗑️</button>
                     </div>
                   </td>

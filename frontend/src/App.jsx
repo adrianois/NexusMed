@@ -8,6 +8,7 @@ import AguardandoAprovacao from './pages/AguardandoAprovacao'
 import NaoAutorizado       from './pages/NaoAutorizado'
 import EsqueciSenha        from './pages/EsqueciSenha'
 import ResetarSenha        from './pages/ResetarSenha'
+import ConfirmarConsulta   from './pages/ConfirmarConsulta'
 
 import Dashboard        from './pages/Dashboard'
 import Pacientes        from './pages/Pacientes'
@@ -46,13 +47,14 @@ export default function App() {
       <AuthProvider>
         <Routes>
           {/* Públicas */}
-          <Route path='/'                     element={<Login />} />
-          <Route path='/login'                element={<Login />} />
-          <Route path='/register'             element={<Register />} />
-          <Route path='/aguardando-aprovacao' element={<AguardandoAprovacao />} />
-          <Route path='/nao-autorizado'       element={<NaoAutorizado />} />
-          <Route path='/esqueci-senha'        element={<EsqueciSenha />} />
-          <Route path='/resetar-senha'        element={<ResetarSenha />} />
+          <Route path='/'                      element={<Login />} />
+          <Route path='/login'                 element={<Login />} />
+          <Route path='/register'              element={<Register />} />
+          <Route path='/aguardando-aprovacao'  element={<AguardandoAprovacao />} />
+          <Route path='/nao-autorizado'        element={<NaoAutorizado />} />
+          <Route path='/esqueci-senha'         element={<EsqueciSenha />} />
+          <Route path='/resetar-senha'         element={<ResetarSenha />} />
+          <Route path='/confirmar-consulta'    element={<ConfirmarConsulta />} />
 
           {/* Geral — normal / gestor / admin */}
           <Route path='/dashboard'        element={<PrivateRoute perfis={GERAL}><Dashboard /></PrivateRoute>} />
@@ -77,7 +79,7 @@ export default function App() {
           <Route path='/gestor/trocar-senha' element={<PrivateRoute perfis={['gestor']}><GestorTrocarSenha /></PrivateRoute>} />
           <Route path='/gestor/logs'         element={<PrivateRoute perfis={['gestor', 'admin']}><GestorLogs /></PrivateRoute>} />
 
-          {/* ─── Módulo Médico ─── */}
+          {/* Médico */}
           <Route path='/medico'                          element={<PrivateRoute perfis={MEDICO}><MedicoDashboard /></PrivateRoute>} />
           <Route path='/medico/agenda'                   element={<PrivateRoute perfis={MEDICO}><MedicoAgenda /></PrivateRoute>} />
           <Route path='/medico/triagem'                  element={<PrivateRoute perfis={MEDICO}><MedicoTriagem /></PrivateRoute>} />
