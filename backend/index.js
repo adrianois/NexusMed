@@ -20,6 +20,7 @@ import assinaturaRoutes     from './routes/assinatura.js'
 import pdfRoutes            from './routes/pdf.js'
 import retornosRoutes       from './routes/retornos.js'
 import posAtendimentoRoutes from './routes/posAtendimento.js'
+import whatsappRoutes       from './src/routes/whatsappRoutes.js'
 
 const app  = express()
 const port = process.env.PORT || 4000
@@ -70,5 +71,6 @@ app.use('/assinatura',       assinaturaRoutes)
 app.use('/pdf',              pdfRoutes)
 app.use('/retornos',         retornosRoutes)
 app.use('/pos-atendimento',  posAtendimentoRoutes)
+app.use('/api/whatsapp',     whatsappRoutes)
 
 app.listen(port, () => console.log(`🚀 Servidor rodando na porta ${port}`))
