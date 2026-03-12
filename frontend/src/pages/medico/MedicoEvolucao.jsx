@@ -17,9 +17,9 @@ const FORM_INICIAL = {
   peso:'', altura:'', pressao:'', temperatura:'', saturacao:'', glicemia:'', observacoes:'',
 }
 
-// ──────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // Componentes auxiliares — FORA do componente principal (evita remount)
-// ──────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 function Sinais({ e }) {
   const itens = [
@@ -53,7 +53,6 @@ function Campo({ label, valor, cor = '#cbd5e1' }) {
   )
 }
 
-// wrapper visual de cada gráfico
 function CardGrafico({ titulo, icon, cor, children }) {
   return (
     <div style={{ background:'#1e293b', border:`1px solid ${cor}33`, borderRadius:'14px', padding:'18px 20px', marginBottom:'16px' }}>
@@ -67,8 +66,7 @@ function CardGrafico({ titulo, icon, cor, children }) {
 }
 
 // Gráfico de linha SVG genérico
-// dados: [{ data: isoString, valor: number }]
-function GraficoLinha({ dados, cor = '#6366f1', unidade = '', vazia = 'Sem dados' }) {
+function GraficoLinha({ dados, cor = '#6366f1', unidade = '', vazia = 'Sem dados', labelX }) {
   if (!dados || dados.length === 0)
     return <p style={{ color:'#475569', fontSize:'0.82rem', textAlign:'center', margin:'20px 0' }}>{vazia}</p>
 
@@ -84,7 +82,7 @@ function GraficoLinha({ dados, cor = '#6366f1', unidade = '', vazia = 'Sem dados
   const pts   = dados.map((d, i) => ({ x: px(i), y: py(d.valor), d }))
   const grades = [0, 0.25, 0.5, 0.75, 1].map(f => ({
     y: padT + iH * (1 - f),
-    v: (min + range * f).toFixed(1),
+    v: Number.isInteger(min + range * f) ? (min + range * f).toFixed(0) : (min + range * f).toFixed(1),
   }))
   const gradId = `gl-${cor.replace('#','')}`
 
@@ -121,7 +119,7 @@ function GraficoLinha({ dados, cor = '#6366f1', unidade = '', vazia = 'Sem dados
             {p.d.valor}{unidade}
           </text>
           <text x={p.x} y={H+padB+6} textAnchor="middle" fill="#475569" fontSize="8">
-            {new Date(p.d.data).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' })}
+            {p.d.label || (p.d.data ? new Date(p.d.data).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }) : '')}
           </text>
         </g>
       ))}
@@ -129,27 +127,29 @@ function GraficoLinha({ dados, cor = '#6366f1', unidade = '', vazia = 'Sem dados
   )
 }
 
-// Gráfico de barras horizontais por tipo de evolução
-// dados: [{ label, qtd, cor, icon }]
-function GraficoBarras({ dados }) {
+// Gráfico de barras horizontais
+function GraficoBarras({ dados, corPadrao = '#6366f1' }) {
+  if (!dados || dados.length === 0)
+    return <p style={{ color:'#475569', fontSize:'0.82rem', textAlign:'center', margin:'20px 0' }}>Sem dados.</p>
   const max  = Math.max(...dados.map(d => d.qtd), 1)
-  const W=500, barH=28, gap=10
+  const W=500, barH=26, gap=8
   const totalH = dados.length * (barH + gap)
-  const padL=110, padR=50
+  const padL=150, padR=50
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${totalH}`} style={{ overflow:'visible', display:'block' }}>
       {dados.map((d, i) => {
         const barW = ((d.qtd / max) * (W - padL - padR)) || 0
         const y    = i * (barH + gap)
+        const cor  = d.cor || corPadrao
         return (
           <g key={d.label}>
-            <text x={padL-8} y={y+barH/2+4} textAnchor="end" fill="#94a3b8" fontSize="11">
-              {d.icon} {d.label}
+            <text x={padL-8} y={y+barH/2+4} textAnchor="end" fill="#94a3b8" fontSize="10">
+              {d.icon ? `${d.icon} ` : ''}{d.label.length > 16 ? d.label.slice(0,15)+'…' : d.label}
             </text>
-            <rect x={padL} y={y} width={W-padL-padR} height={barH} fill="#0f172a" rx="6" />
-            {barW > 0 && <rect x={padL} y={y} width={barW} height={barH} fill={d.cor} rx="6" opacity="0.85" />}
-            <text x={padL+barW+6} y={y+barH/2+4} fill={d.qtd>0 ? d.cor : '#475569'} fontSize="11" fontWeight="700">
+            <rect x={padL} y={y} width={W-padL-padR} height={barH} fill="#0f172a" rx="5" />
+            {barW > 0 && <rect x={padL} y={y} width={barW} height={barH} fill={cor} rx="5" opacity="0.85" />}
+            <text x={padL+barW+6} y={y+barH/2+4} fill={d.qtd>0 ? cor : '#475569'} fontSize="11" fontWeight="700">
               {d.qtd}
             </text>
           </g>
@@ -159,8 +159,7 @@ function GraficoBarras({ dados }) {
   )
 }
 
-// Gráfico de pressão sistólica + diastólica
-// dados: [{ data, sistolica, diastolica }]
+// Gráfico de pressão
 function GraficoPressao({ dados }) {
   if (!dados || dados.length === 0)
     return <p style={{ color:'#475569', fontSize:'0.82rem', textAlign:'center', margin:'20px 0' }}>Sem dados de pressão arterial.</p>
@@ -198,7 +197,6 @@ function GraficoPressao({ dados }) {
           </text>
         </g>
       ))}
-      {/* legenda */}
       <circle cx={padL}    cy={H+padB-14} r="4" fill="#f87171"/>
       <text x={padL+8}    y={H+padB-10} fill="#f87171" fontSize="9">Sistólica</text>
       <circle cx={padL+70} cy={H+padB-14} r="4" fill="#60a5fa"/>
@@ -221,24 +219,28 @@ function agruparPorPaciente(lista, nomeFallback) {
   return Object.values(mapa)
 }
 
-// ──────────────────────────────────────────────────────────────────────────
+// Paleta de cores para CIDs
+const PALETA = ['#6366f1','#f59e0b','#4ade80','#f87171','#a78bfa','#38bdf8','#fb923c','#34d399','#e879f9','#fbbf24']
+
+// ─────────────────────────────────────────────────────────────────────────────
 export default function MedicoEvolucao() {
-  const [aba,          setAba]          = useState('evolucoes')
-  const [evolucoes,    setEvolucoes]    = useState([])
-  const [prontuarios,  setProntuarios]  = useState([])
-  const [pacientes,    setPacientes]    = useState([])
-  const [consultas,    setConsultas]    = useState([])
-  const [loading,      setLoading]      = useState(false)
-  const [loadingPront, setLoadingPront] = useState(false)
-  const [salvando,     setSalvando]     = useState(false)
-  const [form,         setForm]         = useState(FORM_INICIAL)
-  const [mostrarForm,  setMostrarForm]  = useState(false)
-  const [filtroPac,    setFiltroPac]    = useState('')
-  const [buscaAtend,   setBuscaAtend]   = useState('')
-  const [expandidoPac, setExpandidoPac] = useState({})
-  const [expandidoItem,setExpandidoItem]= useState(null)
-  const { toast, ToastUI }             = useToast()
-  const { confirmar, ConfirmModalUI }  = useConfirm()
+  const [aba,              setAba]              = useState('evolucoes')
+  const [subAbaAtend,      setSubAbaAtend]      = useState('lista')
+  const [evolucoes,        setEvolucoes]        = useState([])
+  const [prontuarios,      setProntuarios]      = useState([])
+  const [pacientes,        setPacientes]        = useState([])
+  const [consultas,        setConsultas]        = useState([])
+  const [loading,          setLoading]          = useState(false)
+  const [loadingPront,     setLoadingPront]     = useState(false)
+  const [salvando,         setSalvando]         = useState(false)
+  const [form,             setForm]             = useState(FORM_INICIAL)
+  const [mostrarForm,      setMostrarForm]      = useState(false)
+  const [filtroPac,        setFiltroPac]        = useState('')
+  const [buscaAtend,       setBuscaAtend]       = useState('')
+  const [expandidoPac,     setExpandidoPac]     = useState({})
+  const [expandidoItem,    setExpandidoItem]    = useState(null)
+  const { toast, ToastUI }                     = useToast()
+  const { confirmar, ConfirmModalUI }          = useConfirm()
 
   const carregar = async (paciente_id) => {
     setLoading(true)
@@ -299,30 +301,102 @@ export default function MedicoEvolucao() {
   const gruposEvolucoes   = useMemo(() => agruparPorPaciente(evolucoesFiltradas,  nomePaciente), [evolucoesFiltradas, pacientes])
   const gruposProntuarios = useMemo(() => agruparPorPaciente(prontuariosFiltrados, nomePaciente), [prontuariosFiltrados, pacientes])
 
+  // ─ dados gráficos das EVOLUÇÕES (sinais vitais)
   const dadosGraficos = useMemo(() => {
     const base     = filtroPac ? evolucoes.filter(e => e.paciente_id === filtroPac) : evolucoes
     const ordenado = [...base].sort((a, b) => new Date(a.data_registro) - new Date(b.data_registro))
-
     const peso     = ordenado.filter(e => e.peso        != null && e.peso        !== '').map(e => ({ data: e.data_registro, valor: parseFloat(e.peso) }))
     const temp     = ordenado.filter(e => e.temperatura != null && e.temperatura !== '').map(e => ({ data: e.data_registro, valor: parseFloat(e.temperatura) }))
     const sat      = ordenado.filter(e => e.saturacao   != null && e.saturacao   !== '').map(e => ({ data: e.data_registro, valor: parseFloat(e.saturacao) }))
     const glicemia = ordenado.filter(e => e.glicemia    != null && e.glicemia    !== '').map(e => ({ data: e.data_registro, valor: parseFloat(e.glicemia) }))
-
-    const pressao = ordenado
+    const pressao  = ordenado
       .filter(e => e.pressao && String(e.pressao).includes('/'))
       .map(e => {
         const [s, d] = String(e.pressao).split('/').map(Number)
         return (!isNaN(s) && !isNaN(d)) ? { data: e.data_registro, sistolica: s, diastolica: d } : null
-      })
-      .filter(Boolean)
-
+      }).filter(Boolean)
     const tiposBar = Object.entries(TIPO_CFG).map(([tipo, cfg]) => ({
       label: cfg.label, icon: cfg.icon, cor: cfg.cor,
       qtd: base.filter(e => e.tipo === tipo).length,
     }))
-
     return { peso, temp, sat, glicemia, pressao, tiposBar, total: base.length }
   }, [evolucoes, filtroPac])
+
+  // ─ dados gráficos dos ATENDIMENTOS / PRONTUÁRIOS
+  const dadosGraficosAtend = useMemo(() => {
+    const base = filtroPac
+      ? prontuarios.filter(p => p.paciente_id === filtroPac)
+      : prontuarios
+
+    // 1) Atendimentos por mês (linha)
+    const porMes = {}
+    base.forEach(p => {
+      if (!p.data_atendimento) return
+      const d   = new Date(p.data_atendimento + 'T12:00:00')
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+      porMes[key] = (porMes[key] || 0) + 1
+    })
+    const atendPorMes = Object.keys(porMes).sort().map(k => ({
+      label: k.slice(5) + '/' + k.slice(2,4),
+      valor: porMes[k],
+    }))
+
+    // 2) Top 10 CIDs (barras)
+    const cidMap = {}
+    base.forEach(p => {
+      if (!p.cid10) return
+      const cid = p.cid10.trim().toUpperCase()
+      cidMap[cid] = (cidMap[cid] || 0) + 1
+    })
+    const topCids = Object.entries(cidMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([label, qtd], i) => ({ label, qtd, cor: PALETA[i % PALETA.length] }))
+
+    // 3) Diagnósticos mais frequentes (barras, top 8)
+    const diagMap = {}
+    base.forEach(p => {
+      if (!p.diagnostico) return
+      const diag = p.diagnostico.trim()
+      diagMap[diag] = (diagMap[diag] || 0) + 1
+    })
+    const topDiag = Object.entries(diagMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([label, qtd], i) => ({ label, qtd, cor: PALETA[i % PALETA.length] }))
+
+    // 4) Distribuição de retorno (barras: semanas)
+    const retornoMap = { '1 semana':0, '2 semanas':0, '3 semanas':0, '1 mês':0, '2 meses':0, '3+ meses':0, 'Sem retorno':0 }
+    base.forEach(p => {
+      const dias = parseInt(p.retorno_dias || 0)
+      if (!dias)                retornoMap['Sem retorno']++
+      else if (dias <= 7)       retornoMap['1 semana']++
+      else if (dias <= 14)      retornoMap['2 semanas']++
+      else if (dias <= 21)      retornoMap['3 semanas']++
+      else if (dias <= 30)      retornoMap['1 mês']++
+      else if (dias <= 60)      retornoMap['2 meses']++
+      else                      retornoMap['3+ meses']++
+    })
+    const retornoBars = Object.entries(retornoMap)
+      .map(([label, qtd], i) => ({ label, qtd, cor: PALETA[i % PALETA.length] }))
+      .filter(d => d.qtd > 0)
+
+    // 5) Pacientes com mais atendimentos (apenas sem filtro de paciente)
+    const pacMap = {}
+    if (!filtroPac) {
+      base.forEach(p => {
+        const pid  = p.paciente_id
+        const nome = p.paciente_nome || pid
+        pacMap[nome] = (pacMap[nome] || 0) + 1
+      })
+    }
+    const topPac = Object.entries(pacMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([label, qtd], i) => ({ label, qtd, cor: PALETA[i % PALETA.length] }))
+
+    return { atendPorMes, topCids, topDiag, retornoBars, topPac, total: base.length }
+  }, [prontuarios, filtroPac])
 
   const stats = useMemo(() => {
     const lista = filtroPac ? evolucoes.filter(e => e.paciente_id === filtroPac) : evolucoes
@@ -390,6 +464,14 @@ export default function MedicoEvolucao() {
     fontFamily:'inherit', transition:'all 0.2s',
   })
 
+  const subTabStyle = ativo => ({
+    padding:'6px 16px', border:'none',
+    borderBottom: ativo ? '2px solid #a78bfa' : '2px solid transparent',
+    background:'transparent', color: ativo ? '#c4b5fd' : '#64748b',
+    fontWeight: ativo ? 700 : 400, cursor:'pointer', fontSize:'0.82rem',
+    fontFamily:'inherit', transition:'all 0.2s',
+  })
+
   const CabecalhoPaciente = ({ pid, nome, qtd, corBorda = '#6366f1', badge }) => {
     const aberto = expandidoPac[pid] !== false
     return (
@@ -439,7 +521,7 @@ export default function MedicoEvolucao() {
         )}
       </div>
 
-      {/* Abas */}
+      {/* Abas principais */}
       <div style={{ display:'flex', borderBottom:'1px solid #1e293b', marginBottom:'20px' }}>
         <button style={tabStyle(aba==='evolucoes')} onClick={() => { setAba('evolucoes'); setMostrarForm(false) }}>
           📝 Evoluções
@@ -452,17 +534,17 @@ export default function MedicoEvolucao() {
         </button>
       </div>
 
-      {/* Cards resumo — só com paciente selecionado */}
+      {/* Cards resumo */}
       {filtroPac && (
         <div style={{ display:'flex', gap:'12px', flexWrap:'wrap', marginBottom:'20px' }}>
-          {card('Evoluções',   stats.total,                  '#60a5fa', '📝')}
+          {card('Evoluções',    stats.total,                  '#60a5fa', '📝')}
           {card('Atendimentos', prontuariosFiltrados.length,   '#a78bfa', '📂')}
           {card('Últ. Pressão',  stats.ultPressao || null,      '#f87171', '🩺')}
           {card('Últ. Sat.',     stats.ultSat ? `${stats.ultSat}%` : null, '#4ade80', '💓')}
         </div>
       )}
 
-      {/* ══ ABA EVOLUÇÕES ═══════════════════════════════════ */}
+      {/* ══ ABA EVOLUÇÕES ══════════════════════════════════ */}
       {aba === 'evolucoes' && (
         <>
           {mostrarForm && (
@@ -586,96 +668,184 @@ export default function MedicoEvolucao() {
         </>
       )}
 
-      {/* ══ ABA ATENDIMENTOS ═════════════════════════════ */}
+      {/* ══ ABA ATENDIMENTOS ══════════════════════════════ */}
       {aba === 'atendimentos' && (
-        <>
-          <div style={{ marginBottom:'16px' }}>
-            <input className="form-input"
-              placeholder="🔍 Buscar por diagnóstico, CID, anamnese, conduta, prescrição ou paciente..."
-              value={buscaAtend} onChange={e => setBuscaAtend(e.target.value)}
-              style={{ maxWidth:'520px' }}
-            />
+        <div>
+          {/* Sub-abas: Lista | Gráficos */}
+          <div style={{ display:'flex', borderBottom:'1px solid #1e293b', marginBottom:'16px', gap:'4px' }}>
+            <button style={subTabStyle(subAbaAtend==='lista')} onClick={() => setSubAbaAtend('lista')}>
+              📄 Lista de Atendimentos
+            </button>
+            <button style={subTabStyle(subAbaAtend==='graficos')} onClick={() => setSubAbaAtend('graficos')}>
+              📈 Gráficos {dadosGraficosAtend.total > 0 ? `(${dadosGraficosAtend.total})` : ''}
+            </button>
           </div>
-          {loadingPront && <p className="page-loading">Carregando atendimentos...</p>}
-          {!loadingPront && (
+
+          {/* ─ SUB-ABA LISTA ─ */}
+          {subAbaAtend === 'lista' && (
             <>
-              {gruposProntuarios.length === 0 && (
-                <div style={{ textAlign:'center', color:'#475569', padding:'40px' }}>
-                  <div style={{ fontSize:'3rem', marginBottom:'12px' }}>📂</div>
-                  <p>Nenhum atendimento encontrado{filtroPac ? ' para este paciente' : ''}{buscaAtend ? ` com “${buscaAtend}”` : ''}.</p>
-                </div>
-              )}
-              {gruposProntuarios.map(({ paciente_id: pid, nome, registros }) => {
-                const aberto  = expandidoPac[pid] !== false
-                const ultData = registros[0]?.data_atendimento
-                  ? new Date(registros[0].data_atendimento+'T12:00:00').toLocaleDateString('pt-BR') : null
-                return (
-                  <div key={pid} style={{ marginBottom:'16px' }}>
-                    <CabecalhoPaciente pid={pid} nome={nome} qtd={registros.length} corBorda="#6366f1"
-                      badge={ultData ? `Último: ${ultData}` : undefined} />
-                    {aberto && (
-                      <div style={{ border:'1px solid #1e293b', borderTop:'none',
-                        borderBottomLeftRadius:'10px', borderBottomRightRadius:'10px',
-                        padding:'12px', background:'#0a111e',
-                        display:'flex', flexDirection:'column', gap:'8px' }}>
-                        {registros.map(p => {
-                          const itemAberto = expandidoItem === p.id
-                          const dataFmt = p.data_atendimento
-                            ? new Date(p.data_atendimento+'T12:00:00').toLocaleDateString('pt-BR') : '—'
-                          return (
-                            <div key={p.id} style={{ background:'#1e293b', border:'1px solid #334155',
-                              borderLeft:'3px solid #6366f1', borderRadius:'8px', overflow:'hidden' }}>
-                              <div onClick={() => setExpandidoItem(itemAberto ? null : p.id)}
-                                style={{ padding:'12px 16px', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', gap:'10px' }}>
-                                <div style={{ flex:1, minWidth:0 }}>
-                                  <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
-                                    <span style={{ color:'#a5b4fc', fontSize:'0.78rem', fontWeight:700 }}>📅 {dataFmt}</span>
-                                    {p.cid10 && <span style={{ color:'#6366f1', fontSize:'0.78rem', fontWeight:700,
-                                      background:'rgba(99,102,241,0.12)', padding:'1px 8px', borderRadius:'12px' }}>CID {p.cid10}</span>}
-                                    {p.diagnostico && (
-                                      <span style={{ color:'#94a3b8', fontSize:'0.84rem',
-                                        overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'260px' }}>
-                                        {p.diagnostico}
-                                      </span>
-                                    )}
+              <div style={{ marginBottom:'16px' }}>
+                <input className="form-input"
+                  placeholder="🔍 Buscar por diagnóstico, CID, anamnese, conduta, prescrição ou paciente..."
+                  value={buscaAtend} onChange={e => setBuscaAtend(e.target.value)}
+                  style={{ maxWidth:'520px' }}
+                />
+              </div>
+              {loadingPront && <p className="page-loading">Carregando atendimentos...</p>}
+              {!loadingPront && (
+                <>
+                  {gruposProntuarios.length === 0 && (
+                    <div style={{ textAlign:'center', color:'#475569', padding:'40px' }}>
+                      <div style={{ fontSize:'3rem', marginBottom:'12px' }}>📂</div>
+                      <p>Nenhum atendimento encontrado{filtroPac ? ' para este paciente' : ''}{buscaAtend ? ` com “${buscaAtend}”` : ''}.</p>
+                    </div>
+                  )}
+                  {gruposProntuarios.map(({ paciente_id: pid, nome, registros }) => {
+                    const aberto  = expandidoPac[pid] !== false
+                    const ultData = registros[0]?.data_atendimento
+                      ? new Date(registros[0].data_atendimento+'T12:00:00').toLocaleDateString('pt-BR') : null
+                    return (
+                      <div key={pid} style={{ marginBottom:'16px' }}>
+                        <CabecalhoPaciente pid={pid} nome={nome} qtd={registros.length} corBorda="#6366f1"
+                          badge={ultData ? `Último: ${ultData}` : undefined} />
+                        {aberto && (
+                          <div style={{ border:'1px solid #1e293b', borderTop:'none',
+                            borderBottomLeftRadius:'10px', borderBottomRightRadius:'10px',
+                            padding:'12px', background:'#0a111e',
+                            display:'flex', flexDirection:'column', gap:'8px' }}>
+                            {registros.map(p => {
+                              const itemAberto = expandidoItem === p.id
+                              const dataFmt = p.data_atendimento
+                                ? new Date(p.data_atendimento+'T12:00:00').toLocaleDateString('pt-BR') : '—'
+                              return (
+                                <div key={p.id} style={{ background:'#1e293b', border:'1px solid #334155',
+                                  borderLeft:'3px solid #6366f1', borderRadius:'8px', overflow:'hidden' }}>
+                                  <div onClick={() => setExpandidoItem(itemAberto ? null : p.id)}
+                                    style={{ padding:'12px 16px', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', gap:'10px' }}>
+                                    <div style={{ flex:1, minWidth:0 }}>
+                                      <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+                                        <span style={{ color:'#a5b4fc', fontSize:'0.78rem', fontWeight:700 }}>📅 {dataFmt}</span>
+                                        {p.cid10 && <span style={{ color:'#6366f1', fontSize:'0.78rem', fontWeight:700,
+                                          background:'rgba(99,102,241,0.12)', padding:'1px 8px', borderRadius:'12px' }}>CID {p.cid10}</span>}
+                                        {p.diagnostico && (
+                                          <span style={{ color:'#94a3b8', fontSize:'0.84rem',
+                                            overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'260px' }}>
+                                            {p.diagnostico}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span style={{ color:'#475569', flexShrink:0 }}>{itemAberto ? '▲' : '▼'}</span>
                                   </div>
-                                </div>
-                                <span style={{ color:'#475569', flexShrink:0 }}>{itemAberto ? '▲' : '▼'}</span>
-                              </div>
-                              {itemAberto && (
-                                <div style={{ borderTop:'1px solid #334155', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'4px' }}>
-                                  <Campo label="Anamnese"     valor={p.anamnese}    />
-                                  <Campo label="Exame Físico" valor={p.exame_fisico} />
-                                  <Campo label="Diagnóstico"  valor={p.diagnostico}  cor="#fbbf24" />
-                                  <Campo label="CID-10"       valor={p.cid10}        cor="#6366f1" />
-                                  <Campo label="Conduta"      valor={p.conduta}      cor="#4ade80" />
-                                  <Campo label="Prescrição"   valor={p.prescricao}   cor="#a5b4fc" />
-                                  <Campo label="Observações"  valor={p.observacoes}  />
-                                  {p.retorno_dias && (
-                                    <div style={{ marginTop:'10px' }}>
-                                      <span style={{ background:'rgba(251,191,36,0.12)', color:'#fbbf24',
-                                        border:'1px solid rgba(251,191,36,0.3)', borderRadius:'20px',
-                                        padding:'3px 12px', fontSize:'0.78rem', fontWeight:700 }}>
-                                        🔄 Retorno em {p.retorno_dias} dias
-                                      </span>
+                                  {itemAberto && (
+                                    <div style={{ borderTop:'1px solid #334155', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'4px' }}>
+                                      <Campo label="Anamnese"     valor={p.anamnese}    />
+                                      <Campo label="Exame Físico" valor={p.exame_fisico} />
+                                      <Campo label="Diagnóstico"  valor={p.diagnostico}  cor="#fbbf24" />
+                                      <Campo label="CID-10"       valor={p.cid10}        cor="#6366f1" />
+                                      <Campo label="Conduta"      valor={p.conduta}      cor="#4ade80" />
+                                      <Campo label="Prescrição"   valor={p.prescricao}   cor="#a5b4fc" />
+                                      <Campo label="Observações"  valor={p.observacoes}  />
+                                      {p.retorno_dias && (
+                                        <div style={{ marginTop:'10px' }}>
+                                          <span style={{ background:'rgba(251,191,36,0.12)', color:'#fbbf24',
+                                            border:'1px solid rgba(251,191,36,0.3)', borderRadius:'20px',
+                                            padding:'3px 12px', fontSize:'0.78rem', fontWeight:700 }}>
+                                            🔄 Retorno em {p.retorno_dias} dias
+                                          </span>
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </div>
-                              )}
-                            </div>
-                          )
-                        })}
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                )
-              })}
+                    )
+                  })}
+                </>
+              )}
             </>
           )}
-        </>
+
+          {/* ─ SUB-ABA GRÁFICOS DE ATENDIMENTOS ─ */}
+          {subAbaAtend === 'graficos' && (
+            <div>
+              {dadosGraficosAtend.total === 0 ? (
+                <div style={{ textAlign:'center', color:'#475569', padding:'48px 20px' }}>
+                  <div style={{ fontSize:'3rem', marginBottom:'12px' }}>📈</div>
+                  <p>Nenhum atendimento encontrado{filtroPac ? ' para este paciente' : ''}.</p>
+                </div>
+              ) : (
+                <>
+                  {/* cabeçalho resumo */}
+                  <p style={{ color:'#64748b', fontSize:'0.82rem', marginBottom:'20px' }}>
+                    {filtroPac
+                      ? <><strong style={{ color:'#e2e8f0' }}>{nomePaciente(filtroPac)}</strong> — {dadosGraficosAtend.total} atendimento{dadosGraficosAtend.total !== 1 ? 's' : ''}</>
+                      : <>{dadosGraficosAtend.total} atendimentos no total</>}
+                  </p>
+
+                  {/* Linha: Atendimentos por mês */}
+                  <CardGrafico titulo="Atendimentos por Mês" icon="📅" cor="#6366f1">
+                    <GraficoLinha
+                      dados={dadosGraficosAtend.atendPorMes}
+                      cor="#6366f1"
+                      vazia="Sem datas de atendimento registradas."
+                    />
+                    {dadosGraficosAtend.atendPorMes.length > 0 && (
+                      <div style={{ display:'flex', gap:'16px', marginTop:'8px', fontSize:'0.78rem', color:'#64748b' }}>
+                        <span>Total <strong style={{ color:'#a5b4fc' }}>{dadosGraficosAtend.total}</strong></span>
+                        <span>Período <strong style={{ color:'#a5b4fc' }}>
+                          {dadosGraficosAtend.atendPorMes[0]?.label} — {dadosGraficosAtend.atendPorMes.at(-1)?.label}
+                        </strong></span>
+                      </div>
+                    )}
+                  </CardGrafico>
+
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))', gap:'16px' }}>
+
+                    {/* CIDs mais frequentes */}
+                    <CardGrafico titulo="CIDs mais Frequentes" icon="🩺" cor="#f87171">
+                      {dadosGraficosAtend.topCids.length === 0
+                        ? <p style={{ color:'#475569', fontSize:'0.82rem', textAlign:'center', margin:'20px 0' }}>Sem CIDs cadastrados.</p>
+                        : <GraficoBarras dados={dadosGraficosAtend.topCids} />
+                      }
+                    </CardGrafico>
+
+                    {/* Diagnósticos mais frequentes */}
+                    <CardGrafico titulo="Diagnósticos Frequentes" icon="📌" cor="#f59e0b">
+                      {dadosGraficosAtend.topDiag.length === 0
+                        ? <p style={{ color:'#475569', fontSize:'0.82rem', textAlign:'center', margin:'20px 0' }}>Sem diagnósticos cadastrados.</p>
+                        : <GraficoBarras dados={dadosGraficosAtend.topDiag} corPadrao="#f59e0b" />
+                      }
+                    </CardGrafico>
+
+                    {/* Distribuição de retorno */}
+                    <CardGrafico titulo="Prazo de Retorno" icon="🔄" cor="#4ade80">
+                      {dadosGraficosAtend.retornoBars.length === 0
+                        ? <p style={{ color:'#475569', fontSize:'0.82rem', textAlign:'center', margin:'20px 0' }}>Sem dados de retorno.</p>
+                        : <GraficoBarras dados={dadosGraficosAtend.retornoBars} corPadrao="#4ade80" />
+                      }
+                    </CardGrafico>
+
+                    {/* Pacientes com mais atendimentos (só sem filtro de paciente) */}
+                    {!filtroPac && dadosGraficosAtend.topPac.length > 0 && (
+                      <CardGrafico titulo="Pacientes com Mais Atendimentos" icon="👥" cor="#a78bfa">
+                        <GraficoBarras dados={dadosGraficosAtend.topPac} corPadrao="#a78bfa" />
+                      </CardGrafico>
+                    )}
+
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
-      {/* ══ ABA GRÁFICOS ══════════════════════════════════ */}
+      {/* ══ ABA GRÁFICOS (sinais vitais de evoluções) ════════════════ */}
       {aba === 'graficos' && (
         <div>
           {!filtroPac && (
@@ -686,24 +856,19 @@ export default function MedicoEvolucao() {
               </p>
             </div>
           )}
-
           {filtroPac && dadosGraficos.total === 0 && (
             <div style={{ textAlign:'center', color:'#475569', padding:'48px 20px' }}>
               <div style={{ fontSize:'3rem', marginBottom:'12px' }}>📈</div>
               <p>Nenhuma evolução registrada para <strong style={{ color:'#a5b4fc' }}>{nomePaciente(filtroPac)}</strong>.</p>
             </div>
           )}
-
           {filtroPac && dadosGraficos.total > 0 && (
             <div>
               <p style={{ color:'#64748b', fontSize:'0.82rem', marginBottom:'20px' }}>
-                Exibindo evolução de{' '}
-                <strong style={{ color:'#e2e8f0' }}>{nomePaciente(filtroPac)}</strong>{' '}
-                — {dadosGraficos.total} registro{dadosGraficos.total !== 1 ? 's' : ''}
+                Evolução clínica de <strong style={{ color:'#e2e8f0' }}>{nomePaciente(filtroPac)}</strong>
+                {' '}— {dadosGraficos.total} registro{dadosGraficos.total !== 1 ? 's' : ''}
               </p>
-
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))', gap:'16px' }}>
-
                 <CardGrafico titulo="Peso Corporal (kg)" icon="⚖️" cor="#6366f1">
                   <GraficoLinha dados={dadosGraficos.peso} cor="#6366f1" vazia="Sem registros de peso." />
                   {dadosGraficos.peso.length > 0 && (
@@ -714,7 +879,6 @@ export default function MedicoEvolucao() {
                     </div>
                   )}
                 </CardGrafico>
-
                 <CardGrafico titulo="Temperatura (°C)" icon="🌡️" cor="#f59e0b">
                   <GraficoLinha dados={dadosGraficos.temp} cor="#f59e0b" unidade="°" vazia="Sem registros de temperatura." />
                   {dadosGraficos.temp.length > 0 && (
@@ -725,7 +889,6 @@ export default function MedicoEvolucao() {
                     </div>
                   )}
                 </CardGrafico>
-
                 <CardGrafico titulo="Saturação O₂ (%)" icon="💓" cor="#4ade80">
                   <GraficoLinha dados={dadosGraficos.sat} cor="#4ade80" unidade="%" vazia="Sem registros de saturação." />
                   {dadosGraficos.sat.length > 0 && (
@@ -736,7 +899,6 @@ export default function MedicoEvolucao() {
                     </div>
                   )}
                 </CardGrafico>
-
                 <CardGrafico titulo="Glicemia (mg/dL)" icon="🩸" cor="#f87171">
                   <GraficoLinha dados={dadosGraficos.glicemia} cor="#f87171" vazia="Sem registros de glicemia." />
                   {dadosGraficos.glicemia.length > 0 && (
@@ -747,21 +909,18 @@ export default function MedicoEvolucao() {
                     </div>
                   )}
                 </CardGrafico>
-
               </div>
-
               <CardGrafico titulo="Pressão Arterial (mmHg)" icon="🩺" cor="#f87171">
                 <GraficoPressao dados={dadosGraficos.pressao} />
                 {dadosGraficos.pressao.length > 0 && (
                   <div style={{ display:'flex', gap:'16px', marginTop:'12px', fontSize:'0.78rem', color:'#64748b' }}>
-                    <span>Últ:{ }
+                    <span>Últ:{' '}
                       <strong style={{ color:'#f87171' }}>{dadosGraficos.pressao.at(-1).sistolica}</strong>
                       <span style={{ color:'#60a5fa' }}>/{dadosGraficos.pressao.at(-1).diastolica}</span> mmHg
                     </span>
                   </div>
                 )}
               </CardGrafico>
-
               <CardGrafico titulo="Evoluções por Tipo" icon="📊" cor="#a78bfa">
                 <GraficoBarras dados={dadosGraficos.tiposBar} />
               </CardGrafico>
