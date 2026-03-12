@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import api from '../api'
 import PageLayout from '../components/PageLayout'
 import { useToast } from '../components/Toast'
@@ -62,8 +62,6 @@ function CardPaciente({ item, onSalvar, onFinalizar, onAbrirModal }) {
       border: `1px solid ${finalizado ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.07)'}`,
       borderRadius: '14px', marginBottom: '14px', overflow: 'hidden',
     }}>
-
-      {/* Cabeçalho */}
       <div onClick={() => setAberto(a => !a)}
         style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 18px', cursor: 'pointer' }}>
         <div style={{
@@ -104,10 +102,8 @@ function CardPaciente({ item, onSalvar, onFinalizar, onAbrirModal }) {
         <span style={{ color: '#334155', fontSize: '0.8rem' }}>{aberto ? '▲' : '▼'}</span>
       </div>
 
-      {/* Corpo */}
       {aberto && (
         <div style={{ padding: '0 18px 18px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-
           {pront?.diagnostico && (
             <div style={{
               background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.12)',
@@ -124,7 +120,6 @@ function CardPaciente({ item, onSalvar, onFinalizar, onAbrirModal }) {
           )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '14px' }}>
-            {/* Documentos */}
             <div>
               <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>📄 Documentos entregues</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -134,7 +129,6 @@ function CardPaciente({ item, onSalvar, onFinalizar, onAbrirModal }) {
                 <CheckItem checked={form.doc_outros}         onChange={e => set('doc_outros', e.target.checked)}         label='Outros documentos' />
               </div>
             </div>
-            {/* Cobrança */}
             <div>
               <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>💰 Cobrança</div>
               <select className='form-select' value={form.cobranca_status}
@@ -148,7 +142,6 @@ function CardPaciente({ item, onSalvar, onFinalizar, onAbrirModal }) {
             </div>
           </div>
 
-          {/* Retorno */}
           {pront?.retorno_dias > 0 && (
             <div style={{ marginTop: '16px' }}>
               <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>🔄 Retorno</div>
@@ -176,7 +169,6 @@ function CardPaciente({ item, onSalvar, onFinalizar, onAbrirModal }) {
             </div>
           )}
 
-          {/* Observações de saída */}
           <div style={{ marginTop: '16px' }}>
             <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>📝 Observações de saída</div>
             <textarea className='form-textarea' rows={2}
@@ -185,7 +177,6 @@ function CardPaciente({ item, onSalvar, onFinalizar, onAbrirModal }) {
               disabled={finalizado} style={{ width: '100%', boxSizing: 'border-box' }} />
           </div>
 
-          {/* Ações */}
           {!finalizado && (
             <div style={{ display: 'flex', gap: '10px', marginTop: '16px', flexWrap: 'wrap' }}>
               <button className='btn btn-secondary' style={{ fontSize: '0.82rem', padding: '8px 16px' }}
@@ -216,6 +207,7 @@ export default function PosAtendimento() {
   const [loading, setLoading] = useState(true)
   const [data,    setData]    = useState(new Date().toISOString().split('T')[0])
   const [mostrarConcluidos, setMostrarConcluidos] = useState(false)
+  const [busca,   setBusca]   = useState('')
   const [modal,   setModal]   = useState(null)
   const { toast, ToastUI }             = useToast()
   const { confirmar, ConfirmModalUI }  = useConfirm()
@@ -262,13 +254,23 @@ export default function PosAtendimento() {
   const pendentes  = itens.filter(i => !i.pos_atendimento?.finalizado)
   const concluidos = itens.filter(i =>  i.pos_atendimento?.finalizado)
   const semRegistro = itens.filter(i => !i.pos_atendimento)
-  const exibir     = mostrarConcluidos ? itens : pendentes
+
+  // Aplica filtro de busca por nome sobre a lista já filtrada por status
+  const exibir = useMemo(() => {
+    const base = mostrarConcluidos ? itens : pendentes
+    if (!busca.trim()) return base
+    const termo = busca.trim().toLowerCase()
+    return base.filter(i =>
+      (i.paciente?.nome || '').toLowerCase().includes(termo) ||
+      (i.medico?.nome   || '').toLowerCase().includes(termo) ||
+      (i.motivo         || '').toLowerCase().includes(termo)
+    )
+  }, [itens, mostrarConcluidos, busca])
 
   return (
     <PageLayout title='🏥 Pós-Atendimento'>
       <ToastUI /><ConfirmModalUI />
 
-      {/* Modal de agendamento de retorno */}
       <ModalAgendarRetorno
         aberto={!!modal}
         onFechar={() => setModal(null)}
@@ -305,12 +307,22 @@ export default function PosAtendimento() {
       </div>
 
       {/* Toolbar */}
-      <div className='inner-toolbar' style={{ marginBottom: '20px' }}>
+      <div className='inner-toolbar' style={{ marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <label style={{ fontSize: '0.8rem', color: '#64748b' }}>📅 Data:</label>
           <input type='date' className='form-input' style={{ maxWidth: '160px' }}
-            value={data} onChange={e => setData(e.target.value)} />
+            value={data} onChange={e => { setData(e.target.value); setBusca('') }} />
         </div>
+
+        {/* Campo de busca por nome */}
+        <input
+          className='form-input'
+          style={{ maxWidth: '260px' }}
+          placeholder='🔍 Buscar por nome, médico ou motivo...'
+          value={busca}
+          onChange={e => setBusca(e.target.value)}
+        />
+
         <label style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '0.82rem', color: '#64748b', cursor: 'pointer' }}>
           <input type='checkbox' checked={mostrarConcluidos}
             onChange={e => setMostrarConcluidos(e.target.checked)}
@@ -320,13 +332,31 @@ export default function PosAtendimento() {
         <button className='btn btn-secondary' onClick={() => carregar(data)}>🔄 Atualizar</button>
       </div>
 
+      {/* Tag de busca ativa */}
+      {busca.trim() && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Mostrando {exibir.length} resultado{exibir.length !== 1 ? 's' : ''} para:</span>
+          <span style={{
+            background: 'rgba(96,165,250,0.12)', color: '#60a5fa',
+            border: '1px solid rgba(96,165,250,0.25)',
+            padding: '3px 12px', borderRadius: 20, fontSize: '0.78rem', fontWeight: 700
+          }}>"{busca.trim()}"</span>
+          <button onClick={() => setBusca('')}
+            style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '0.8rem' }}>
+            ✕ Limpar
+          </button>
+        </div>
+      )}
+
       {loading && <p className='page-loading'>Carregando fila...</p>}
 
       {!loading && exibir.length === 0 && (
         <div style={{ textAlign: 'center', padding: '3rem', color: '#334155', fontSize: '0.88rem' }}>
-          {pendentes.length === 0 && concluidos.length === 0
-            ? '🎉 Nenhum paciente liberado pelo médico nesta data.'
-            : '✅ Todos os pacientes já foram finalizados!'}
+          {busca.trim()
+            ? `🔍 Nenhum paciente encontrado para "${busca.trim()}".`
+            : pendentes.length === 0 && concluidos.length === 0
+              ? '🎉 Nenhum paciente liberado pelo médico nesta data.'
+              : '✅ Todos os pacientes já foram finalizados!'}
         </div>
       )}
 
