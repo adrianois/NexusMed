@@ -54,6 +54,7 @@ NexusMed/
     │   │   ├── Medicos.jsx     # Cadastro + agenda semanal + editar + excluir
     │   │   ├── Consultas.jsx   # Agendamento com horários disponíveis
     │   │   ├── Prontuarios.jsx # Prontuários por paciente
+    │   │   ├── Triagem.jsx     # Triagem com geração de PDF 📄
     │   │   ├── Login.jsx
     │   │   ├── Register.jsx
     │   │   └── Admin/          # Painel admin (clínicas, usuários)
@@ -142,8 +143,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
   nome       TEXT NOT NULL,
   email      TEXT UNIQUE NOT NULL,
   senha_hash TEXT NOT NULL,
-  perfil     TEXT DEFAULT 'normal',   -- admin | gestor | normal
-  status     TEXT DEFAULT 'pendente', -- ativo | pendente | inativo
+  perfil     TEXT DEFAULT 'normal',
+  status     TEXT DEFAULT 'pendente',
   clinica_id UUID REFERENCES clinicas(id),
   criado_em  TIMESTAMPTZ DEFAULT now()
 );
@@ -157,7 +158,7 @@ CREATE TABLE IF NOT EXISTS medicos (
   telefone     VARCHAR(20),
   email        TEXT,
   ativo        BOOLEAN DEFAULT true,
-  agenda       JSONB DEFAULT '{}',    -- { "seg": ["08:00","09:00"], ... }
+  agenda       JSONB DEFAULT '{}',
   clinica_id   UUID REFERENCES clinicas(id),
   criado_em    TIMESTAMPTZ DEFAULT now()
 );
@@ -206,14 +207,6 @@ CREATE TABLE IF NOT EXISTS prontuarios (
 );
 ```
 
-> Se as tabelas já existem, ajuste os campos com:
-> ```sql
-> ALTER TABLE clinicas ALTER COLUMN cnpj TYPE VARCHAR(20);
-> ALTER TABLE medicos  ADD COLUMN IF NOT EXISTS agenda JSONB DEFAULT '{}';
-> ALTER TABLE consultas ADD COLUMN IF NOT EXISTS medico_id UUID REFERENCES medicos(id);
-> ALTER TABLE consultas ADD COLUMN IF NOT EXISTS horario TEXT;
-> ```
-
 ---
 
 ## 🔐 Perfis de Acesso
@@ -232,51 +225,29 @@ CREATE TABLE IF NOT EXISTS prontuarios (
 
 ### 🏠 Dashboard
 - Agenda do dia por médico com grade de horários
-- Seletor de data (◄ dia anterior · input · dia seguinte ► · botão Hoje)
+- Seletor de data
 - Exibe consultas mesmo sem agenda configurada no médico
-- Destaca horários ocupados com nome do paciente
 
 ### 👥 Pacientes
 - Cadastro completo com busca automática de CEP (ViaCEP)
-- Editar dados
-- Excluir com proteção: bloqueia se tiver consultas ou prontuários vinculados
+- Editar e excluir com proteção de vínculos
 
 ### 👨‍⚕️ Médicos
 - Cadastro com especialidade e contato
-- **Agenda semanal**: selecione horários disponíveis para cada dia da semana
-- Copiar horários de um dia para todos os dias úteis
-- Ativar / Desativar médico
-- Excluir com proteção de vínculos
+- Agenda semanal configurável
+- Ativar / Desativar
 
 ### 📅 Consultas
-- Ao selecionar médico + data, exibe **apenas os horários disponíveis** na agenda
-- Bloqueia automaticamente horários já ocupados por outras consultas
-- Editar agendamentos
-- Excluir com proteção se houver prontuário vinculado
+- Horários disponíveis por médico e data
+- Bloqueio automático de horários ocupados
+
+### 🩺 Triagem
+- Fila de triagem por data
+- Registro de sinais vitais, queixa e prioridade
+- **Geração de PDF** com dados completos da triagem 📄
 
 ### 📋 Prontuários
-- Registro de prontuários por paciente
-- Vinculação opcional com consulta
+- Registro por paciente com vínculo opcional a consulta
 
 ### ⚙️ Admin
-- Gerenciar clínicas (cadastrar, ativar/desativar)
-- Gerenciar usuários (alterar perfil, status e clínica)
-
----
-
-## 📡 Endpoints da API
-
-| Método | Rota | Acesso | Descrição |
-|--------|------|--------|-----------|
-| POST | `/auth/register` | Público | Registrar usuário |
-| POST | `/auth/login` | Público | Login |
-| GET | `/clinicas/publicas` | Público | Listar clínicas ativas |
-| GET/POST | `/medicos` | Autenticado | Listar/criar médicos |
-| PATCH/DELETE | `/medicos/:id` | Autenticado | Editar/excluir médico |
-| GET/POST | `/pacientes` | Autenticado | Listar/criar pacientes |
-| PUT/DELETE | `/pacientes/:id` | Autenticado | Editar/excluir paciente |
-| GET/POST | `/consultas` | Autenticado | Listar/criar consultas |
-| PUT/DELETE | `/consultas/:id` | Autenticado | Editar/excluir consulta |
-| GET/POST | `/prontuarios` | Autenticado | Prontuários |
-| GET/POST/PATCH | `/admin/*` | Admin | Gestão de clínicas e usuários |
-| GET/PATCH | `/gestor/*` | Gestor+ | Aprovação de usuários |
+- Gerenciar clínicas e usuários
