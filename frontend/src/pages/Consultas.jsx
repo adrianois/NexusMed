@@ -5,6 +5,7 @@ import { useConfirm } from '../components/ConfirmModal'
 import { useToast } from '../components/Toast'
 import { enviarConfirmacaoWhatsApp } from '../services/whatsappService'
 import { enviarEmailConsulta } from '../services/emailService'
+import { useAuth } from '../context/AuthContext'
 import './InnerPage.css'
 
 const STATUS_CFG = {
@@ -28,6 +29,7 @@ function BadgeStatus({ status }) {
 }
 
 export default function Consultas() {
+  const { usuario } = useAuth()
   const [consultas,     setConsultas]     = useState([])
   const [pacientes,     setPacientes]     = useState([])
   const [medicos,       setMedicos]       = useState([])
@@ -82,7 +84,7 @@ export default function Consultas() {
       await enviarEmailConsulta({
         para:       email,
         paciente:   nomePaciente(c.paciente_id),
-        clinica:    'NexusMed',
+        clinica_id: usuario?.clinica_id || null,
         medico:     nomeMedico(c.medico_id),
         data:       dataFormatada,
         hora:       c.horario || 'A definir',
@@ -271,21 +273,16 @@ export default function Consultas() {
                   <td>
                     <div style={{display:'flex',gap:'5px',flexWrap:'wrap'}}>
                       <button className='btn btn-secondary' style={{fontSize:'0.75rem',padding:'4px 8px'}} onClick={() => abrirEditar(c)}>✏️</button>
-
-                      {/* WhatsApp */}
                       <button title={`WhatsApp — ${nomePaciente(c.paciente_id)}`}
                         disabled={enviandoWpp === c.id} onClick={() => enviarWhatsApp(c)}
                         style={btnAcao('#25d366', enviandoWpp === c.id)}>
                         {enviandoWpp === c.id ? '⏳' : '📲'}
                       </button>
-
-                      {/* E-mail com link de confirmação */}
-                      <button title={`E-mail com link de confirmação — ${nomePaciente(c.paciente_id)}`}
+                      <button title={`E-mail com confirmação — ${nomePaciente(c.paciente_id)}`}
                         disabled={enviandoEmail === c.id} onClick={() => enviarEmail(c)}
                         style={btnAcao('#6366f1', enviandoEmail === c.id)}>
                         {enviandoEmail === c.id ? '⏳' : '✉️'}
                       </button>
-
                       {(proximosStatus[c.status] || []).map(ns => (
                         <button key={ns} className='btn btn-primary' style={{fontSize:'0.72rem',padding:'4px 8px'}} onClick={() => alterarStatus(c.id, ns)}>
                           → {STATUS_CFG[ns]?.label}
