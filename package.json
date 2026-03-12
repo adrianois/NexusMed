@@ -2,11 +2,11 @@
   "name": "nexusmed",
   "version": "1.0.0",
   "description": "Sistema para clínica médica que integra CRM, ERP e Prontuário Eletrônico",
-  "main": "index.js",
+  "main": "backend/index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
+    "start": "node backend/index.js",
+    "dev": "nodemon backend/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev:all": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\""
   },
