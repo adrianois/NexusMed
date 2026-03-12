@@ -1,196 +1,241 @@
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 
+const PRIORIDADE_CORES = {
+  normal:      { r: 148, g: 163, b: 184, label: 'Normal' },
+  prioritario: { r: 96,  g: 165, b: 250, label: 'Prioritário' },
+  urgente:     { r: 251, g: 146, b: 60,  label: 'Urgente' },
+  emergencia:  { r: 248, g: 113, b: 113, label: 'Emergência' },
+}
+
+const calcularIMC = (peso, altura) => {
+  if (!peso || !altura) return null
+  const p = parseFloat(peso)
+  const a = parseFloat(altura) / 100
+  if (isNaN(p) || isNaN(a) || a === 0) return null
+  const imc = (p / (a * a)).toFixed(1)
+  let classificacao = ''
+  if      (imc < 18.5) classificacao = 'Abaixo do peso'
+  else if (imc < 25)   classificacao = 'Peso normal'
+  else if (imc < 30)   classificacao = 'Sobrepeso'
+  else if (imc < 35)   classificacao = 'Obesidade Grau I'
+  else if (imc < 40)   classificacao = 'Obesidade Grau II'
+  else                 classificacao = 'Obesidade Grau III'
+  return { valor: imc, classificacao }
+}
+
 export const generateTriagemPDF = (consulta, paciente, medico) => {
   const doc = new jsPDF()
-  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageWidth  = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
-  let yPos = 15
+  let y = 15
 
-  const setFont = (size = 11, bold = false) => {
-    doc.setFont('Helvetica', bold ? 'bold' : 'normal')
-    doc.setFontSize(size)
+  const TEAL   = [33, 128, 141]
+  const DARK   = [15, 23, 42]
+  const GRAY   = [100, 116, 139]
+  const LIGHT  = [248, 250, 252]
+  const WHITE  = [255, 255, 255]
+  const BLACK  = [0, 0, 0]
+  const BORDER = [226, 232, 240]
+
+  const prioCfg = PRIORIDADE_CORES[consulta.triagem_prioridade || 'normal']
+
+  // ─── Faixa de cabeçalho ─────────────────────────────────────────────
+  doc.setFillColor(...TEAL)
+  doc.rect(0, 0, pageWidth, 32, 'F')
+
+  doc.setFont('Helvetica', 'bold')
+  doc.setFontSize(16)
+  doc.setTextColor(...WHITE)
+  doc.text('NexusMed', 15, 13)
+
+  doc.setFont('Helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(200, 235, 240)
+  doc.text('Sistema de Gestão em Saúde', 15, 20)
+
+  doc.setFont('Helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.setTextColor(...WHITE)
+  doc.text('RELATÓRIO DE TRIAGEM', pageWidth - 15, 13, { align: 'right' })
+
+  doc.setFont('Helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(200, 235, 240)
+  doc.text(`Nº ${consulta.id || '—'} · ${new Date().toLocaleString('pt-BR')}`, pageWidth - 15, 20, { align: 'right' })
+
+  y = 40
+
+  // ─── Badge de prioridade ────────────────────────────────────────────
+  doc.setFillColor(prioCfg.r, prioCfg.g, prioCfg.b)
+  doc.roundedRect(15, y, 60, 11, 3, 3, 'F')
+  doc.setFont('Helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(...WHITE)
+  doc.text(`PRIORIDADE: ${prioCfg.label.toUpperCase()}`, 45, y + 7.5, { align: 'center' })
+
+  const dataConsulta = consulta.data
+    ? new Date(consulta.data + 'T12:00:00').toLocaleDateString('pt-BR')
+    : new Date().toLocaleDateString('pt-BR')
+
+  doc.setFont('Helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(...GRAY)
+  doc.text(`Data da Consulta: ${dataConsulta}   |   Horário: ${consulta.horario || 'N/A'}`, pageWidth - 15, y + 7.5, { align: 'right' })
+
+  y += 18
+
+  // ─── Seção: Dados do Paciente ───────────────────────────────────────
+  const sectionHeader = (label, yStart) => {
+    doc.setFillColor(...TEAL)
+    doc.rect(15, yStart, pageWidth - 30, 8, 'F')
+    doc.setFont('Helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(...WHITE)
+    doc.text(label, 18, yStart + 5.5)
+    return yStart + 10
   }
 
-  const addText = (text, x = 15, size = 11, bold = false) => {
-    setFont(size, bold)
-    doc.text(text, x, yPos)
-    yPos += size * 0.35 + 2
-  }
-
-  const addLine = () => {
-    doc.setDrawColor(200, 200, 200)
-    doc.line(15, yPos, pageWidth - 15, yPos)
-    yPos += 5
-  }
-
-  // ─── Cabeçalho ─────────────────────────────────────
-  setFont(16, true)
-  doc.setTextColor(33, 128, 141) // cor teal do sistema
-  doc.text('RELATÓRIO DE TRIAGEM', 15, yPos)
-  yPos += 10
-
-  addLine()
-
-  // ─── Informações da Consulta ───────────────────────
-  setFont(10, true)
-  doc.setTextColor(0, 0, 0)
-  doc.text('DATA E HORA DA TRIAGEM', 15, yPos)
-  yPos += 5
-
-  setFont(10)
-  const dataTriage = new Date(consulta.created_at || new Date()).toLocaleDateString('pt-BR')
-  const horaTriage = new Date(consulta.created_at || new Date()).toLocaleTimeString('pt-BR')
-  doc.text(`Data: ${dataTriage} | Hora da Consulta: ${consulta.horario || 'N/A'} | Horário Triagem: ${horaTriage}`, 15, yPos)
-  yPos += 8
-
-  // ─── Dados do Paciente ──────────────────────────────
-  setFont(10, true)
-  doc.text('DADOS DO PACIENTE', 15, yPos)
-  yPos += 5
-
-  setFont(9)
-  const dataPaciente = [
-    ['Nome', paciente?.nome || 'N/A'],
-    ['CPF', paciente?.cpf || 'N/A'],
-    ['Data de Nascimento', paciente?.data_nascimento ? new Date(paciente.data_nascimento).toLocaleDateString('pt-BR') : 'N/A'],
-    ['Telefone', paciente?.telefone || 'N/A'],
-  ]
+  y = sectionHeader('DADOS DO PACIENTE', y)
 
   doc.autoTable({
-    startY: yPos,
+    startY: y,
     head: [],
-    body: dataPaciente,
+    body: [
+      ['Nome',               paciente?.nome               || 'N/A'],
+      ['CPF',                paciente?.cpf                || 'N/A'],
+      ['Data de Nascimento', paciente?.data_nascimento
+        ? new Date(paciente.data_nascimento + 'T12:00:00').toLocaleDateString('pt-BR')
+        : 'N/A'],
+      ['Telefone',           paciente?.telefone           || 'N/A'],
+      ['Email',              paciente?.email              || 'N/A'],
+    ],
     theme: 'grid',
-    styles: {
-      fontSize: 9,
-      cellPadding: 4,
-      textColor: 0,
-    },
+    styles: { fontSize: 9, cellPadding: 4, textColor: BLACK },
     columnStyles: {
-      0: { cellWidth: 50, fontStyle: 'bold', fillColor: [240, 240, 240] },
-      1: { cellWidth: 100 },
+      0: { cellWidth: 55, fontStyle: 'bold', fillColor: LIGHT },
+      1: { cellWidth: 'auto' },
     },
     margin: { left: 15, right: 15 },
   })
+  y = doc.lastAutoTable.finalY + 6
 
-  yPos = doc.lastAutoTable.finalY + 8
-
-  // ─── Dados do Médico ────────────────────────────────
-  setFont(10, true)
-  doc.text('MÉDICO RESPONSÁVEL', 15, yPos)
-  yPos += 5
-
-  setFont(9)
-  const dataMedico = [
-    ['Nome', medico?.nome || 'N/A'],
-    ['CRM', medico?.crm || 'N/A'],
-    ['Especialidade', medico?.especialidade || 'N/A'],
-  ]
+  // ─── Seção: Médico Responsável ──────────────────────────────────────
+  y = sectionHeader('MÉDICO RESPONSÁVEL', y)
 
   doc.autoTable({
-    startY: yPos,
+    startY: y,
     head: [],
-    body: dataMedico,
+    body: [
+      ['Nome',         medico?.nome          || 'N/A'],
+      ['CRM',          medico?.crm           || 'N/A'],
+      ['Especialidade',medico?.especialidade || 'N/A'],
+    ],
     theme: 'grid',
-    styles: {
-      fontSize: 9,
-      cellPadding: 4,
-      textColor: 0,
-    },
+    styles: { fontSize: 9, cellPadding: 4, textColor: BLACK },
     columnStyles: {
-      0: { cellWidth: 50, fontStyle: 'bold', fillColor: [240, 240, 240] },
-      1: { cellWidth: 100 },
+      0: { cellWidth: 55, fontStyle: 'bold', fillColor: LIGHT },
+      1: { cellWidth: 'auto' },
     },
     margin: { left: 15, right: 15 },
   })
+  y = doc.lastAutoTable.finalY + 6
 
-  yPos = doc.lastAutoTable.finalY + 8
+  // ─── Seção: Sinais Vitais ───────────────────────────────────────────
+  y = sectionHeader('SINAIS VITAIS', y)
 
-  // ─── Sinais Vitais ──────────────────────────────────
-  setFont(10, true)
-  doc.text('SINAIS VITAIS', 15, yPos)
-  yPos += 5
-
-  setFont(9)
+  const imc = calcularIMC(consulta.triagem_peso, consulta.triagem_altura)
   const sinaisVitais = [
-    ['Peso', consulta.triagem_peso ? `${consulta.triagem_peso} kg` : '—'],
-    ['Altura', consulta.triagem_altura ? `${consulta.triagem_altura} cm` : '—'],
-    ['Pressão Arterial', consulta.triagem_pressao || '—'],
-    ['Temperatura', consulta.triagem_temperatura ? `${consulta.triagem_temperatura} °C` : '—'],
-    ['Frequência Cardíaca', consulta.triagem_freq_cardiaca ? `${consulta.triagem_freq_cardiaca} bpm` : '—'],
-    ['Saturação de O₂', consulta.triagem_saturacao ? `${consulta.triagem_saturacao} %` : '—'],
+    ['Peso',                consulta.triagem_peso           ? `${consulta.triagem_peso} kg`         : '—'],
+    ['Altura',              consulta.triagem_altura         ? `${consulta.triagem_altura} cm`        : '—'],
+    ['IMC',                 imc                             ? `${imc.valor} kg/m²  (${imc.classificacao})` : '—'],
+    ['Pressão Arterial',    consulta.triagem_pressao                                                 || '—'],
+    ['Temperatura',         consulta.triagem_temperatura    ? `${consulta.triagem_temperatura} °C`  : '—'],
+    ['Frequência Cardíaca', consulta.triagem_freq_cardiaca  ? `${consulta.triagem_freq_cardiaca} bpm`: '—'],
+    ['Saturação de O₂',    consulta.triagem_saturacao      ? `${consulta.triagem_saturacao} %`     : '—'],
   ]
 
   doc.autoTable({
-    startY: yPos,
-    head: ['Sinal Vital', 'Valor'],
+    startY: y,
+    head: [['Sinal Vital', 'Valor']],
     body: sinaisVitais,
     theme: 'grid',
-    styles: {
-      fontSize: 9,
-      cellPadding: 4,
-      textColor: 0,
-    },
-    headStyles: {
-      fillColor: [33, 128, 141],
-      textColor: 255,
-      fontStyle: 'bold',
+    styles: { fontSize: 9, cellPadding: 4, textColor: BLACK },
+    headStyles: { fillColor: TEAL, textColor: WHITE, fontStyle: 'bold' },
+    columnStyles: {
+      0: { cellWidth: 55, fontStyle: 'bold', fillColor: LIGHT },
+      1: { cellWidth: 'auto' },
     },
     margin: { left: 15, right: 15 },
+    // destaca IMC se fora da faixa normal
+    didParseCell: (data) => {
+      if (data.row.index === 2 && data.column.index === 1 && imc) {
+        const v = parseFloat(imc.valor)
+        if (v < 18.5 || v >= 25) {
+          data.cell.styles.textColor = [220, 38, 38]
+          data.cell.styles.fontStyle = 'bold'
+        }
+      }
+    },
   })
+  y = doc.lastAutoTable.finalY + 6
 
-  yPos = doc.lastAutoTable.finalY + 8
-
-  // ─── Classificação de Risco ────────────────────────
-  const prioridadeLabel = {
-    normal: 'Normal',
-    prioritario: 'Prioritário',
-    urgente: 'Urgente',
-    emergencia: 'Emergência',
-  }
-
-  setFont(10, true)
-  doc.text('CLASSIFICAÇÃO DE RISCO', 15, yPos)
-  yPos += 5
-
-  setFont(9)
-  const prioridade = prioridadeLabel[consulta.triagem_prioridade || 'normal']
-  doc.text(`Prioridade: ${prioridade}`, 15, yPos)
-  yPos += 6
-
-  // ─── Queixa e Observações ──────────────────────────
+  // ─── Seção: Queixa e Observações ───────────────────────────────────
   if (consulta.triagem_queixa || consulta.triagem_obs) {
-    setFont(10, true)
-    doc.text('QUEIXA E OBSERVAÇÕES', 15, yPos)
-    yPos += 5
+    y = sectionHeader('QUEIXA E OBSERVAÇÕES', y)
 
-    setFont(9)
-    if (consulta.triagem_queixa) {
-      doc.text('Queixa Principal:', 15, yPos)
-      yPos += 4
-      const queixaLines = doc.splitTextToSize(consulta.triagem_queixa, 170)
-      doc.text(queixaLines, 18, yPos)
-      yPos += queixaLines.length * 4 + 4
-    }
+    const rows = []
+    if (consulta.triagem_queixa) rows.push(['Queixa Principal', consulta.triagem_queixa])
+    if (consulta.triagem_obs)    rows.push(['Observações',      consulta.triagem_obs])
 
-    if (consulta.triagem_obs) {
-      doc.text('Observações:', 15, yPos)
-      yPos += 4
-      const obsLines = doc.splitTextToSize(consulta.triagem_obs, 170)
-      doc.text(obsLines, 18, yPos)
-      yPos += obsLines.length * 4 + 4
-    }
-
-    yPos += 4
+    doc.autoTable({
+      startY: y,
+      head: [],
+      body: rows,
+      theme: 'grid',
+      styles: { fontSize: 9, cellPadding: 5, textColor: BLACK },
+      columnStyles: {
+        0: { cellWidth: 55, fontStyle: 'bold', fillColor: LIGHT },
+        1: { cellWidth: 'auto' },
+      },
+      margin: { left: 15, right: 15 },
+    })
+    y = doc.lastAutoTable.finalY + 6
   }
 
-  // ─── Rodapé ────────────────────────────────────────
-  setFont(8)
-  doc.setTextColor(150, 150, 150)
-  doc.text(`Relatório gerado pelo NexusMed em ${new Date().toLocaleString('pt-BR')}`, 15, pageHeight - 10)
+  // ─── Assinatura ─────────────────────────────────────────────────────
+  const spaceNeeded = 50
+  if (y + spaceNeeded > pageHeight - 20) {
+    doc.addPage()
+    y = 20
+  }
 
-  // ─── Salvar PDF ─────────────────────────────────────
-  const nomeArquivo = `Triagem_${paciente?.nome || 'Paciente'}_${dataTriage.replace(/\//g, '-')}.pdf`
-  doc.save(nomeArquivo)
+  y += 10
+  doc.setDrawColor(...BORDER)
+  doc.line(15, y + 20, 90, y + 20)
+  doc.setFont('Helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(...GRAY)
+  doc.text('Assinatura do Profissional', 52, y + 26, { align: 'center' })
+  doc.text(medico?.nome ? `Dr(a). ${medico.nome}` : '', 52, y + 31, { align: 'center' })
+  doc.text(medico?.crm  ? `CRM: ${medico.crm}`    : '', 52, y + 36, { align: 'center' })
+
+  doc.line(pageWidth - 90, y + 20, pageWidth - 15, y + 20)
+  doc.text('Data e Carimbo', pageWidth - 52, y + 26, { align: 'center' })
+
+  // ─── Rodapé ─────────────────────────────────────────────────────────
+  doc.setFillColor(...TEAL)
+  doc.rect(0, pageHeight - 12, pageWidth, 12, 'F')
+  doc.setFont('Helvetica', 'normal')
+  doc.setFontSize(7)
+  doc.setTextColor(...WHITE)
+  doc.text(
+    `Relatório gerado pelo NexusMed em ${new Date().toLocaleString('pt-BR')} · Documento de uso interno`,
+    pageWidth / 2, pageHeight - 4.5, { align: 'center' }
+  )
+
+  // ─── Salvar PDF ──────────────────────────────────────────────────────
+  const dataFmt = dataConsulta.replace(/\//g, '-')
+  const nomeArq = `Triagem_${paciente?.nome?.replace(/\s+/g, '_') || 'Paciente'}_${dataFmt}.pdf`
+  doc.save(nomeArq)
 }
