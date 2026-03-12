@@ -61,7 +61,7 @@ export default function Login() {
           <button onClick={() => navigate('/esqueci-senha')}>Esqueci minha senha</button>
         </p>
         <p>
-          N\u00e3o tem conta?{' '}
+          Não tem conta?{' '}
           <button onClick={() => navigate('/register')}>Registrar</button>
         </p>
       </div>
