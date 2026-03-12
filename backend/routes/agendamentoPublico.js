@@ -5,6 +5,9 @@ import { autenticar } from '../lib/auth.js'
 
 const router = Router()
 
+// Data placeholder usada quando paciente externo não informa data de nascimento
+const DATA_NASC_PLACEHOLDER = '1900-01-01'
+
 // ── ROTAS PÚBLICAS (sem autenticação) ────────────────────────────────────────
 
 router.get('/clinicas', async (_req, res) => {
@@ -60,7 +63,7 @@ router.get('/buscar-paciente', async (req, res) => {
 // Agendamento público — cria paciente automaticamente se não existir
 router.post('/agendar', async (req, res) => {
   const { clinica_id, medico_id, data_consulta, horario, motivo,
-          nome_paciente, telefone, email, cpf } = req.body
+          nome_paciente, telefone, email, cpf, data_nascimento } = req.body
 
   if (!clinica_id || !medico_id || !data_consulta || !horario || !motivo || !nome_paciente)
     return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' })
@@ -97,10 +100,16 @@ router.post('/agendar', async (req, res) => {
 
   // Cria paciente novo se não encontrou
   if (!paciente_id) {
-    const novoPac = { nome: nome_paciente, clinica_id }
+    const novoPac = {
+      nome: nome_paciente,
+      clinica_id,
+      // data_nascimento é NOT NULL no banco — usa placeholder se não informada
+      data_nascimento: data_nascimento || DATA_NASC_PLACEHOLDER,
+    }
     if (telLimpo) novoPac.telefone = telLimpo
     if (email)    novoPac.email    = email
     if (cpfLimpo) novoPac.cpf      = cpfLimpo
+
     const { data: criado, error: erroPac } = await supabase
       .from('pacientes').insert([novoPac]).select('id')
     if (erroPac) return res.status(400).json({ error: `Erro ao criar paciente: ${erroPac.message}` })
@@ -125,7 +134,6 @@ router.post('/agendar', async (req, res) => {
 
 // ── ROTAS INTERNAS (com autenticação) ────────────────────────────────────────
 
-// Lista consultas sem paciente vinculado (pendentes de vínculo)
 router.get('/pendentes-vinculo', autenticar, async (req, res) => {
   const { clinica_id } = req.usuario
   let q = supabase.from('consultas').select('*')
@@ -136,7 +144,6 @@ router.get('/pendentes-vinculo', autenticar, async (req, res) => {
   res.json(data || [])
 })
 
-// Busca pacientes para sugerir vínculo pelo nome ou CPF
 router.get('/sugerir-paciente', autenticar, async (req, res) => {
   const { termo, clinica_id: qClinica } = req.query
   const clinica_id = req.usuario.perfil !== 'admin' ? req.usuario.clinica_id : qClinica
@@ -149,7 +156,6 @@ router.get('/sugerir-paciente', autenticar, async (req, res) => {
   res.json(data || [])
 })
 
-// Vincula paciente existente a uma consulta
 router.patch('/vincular/:consulta_id', autenticar, async (req, res) => {
   const { paciente_id } = req.body
   if (!paciente_id) return res.status(400).json({ error: 'paciente_id é obrigatório.' })
@@ -160,7 +166,6 @@ router.patch('/vincular/:consulta_id', autenticar, async (req, res) => {
   res.json(data[0])
 })
 
-// Cria novo paciente e vincula à consulta
 router.post('/criar-e-vincular/:consulta_id', autenticar, async (req, res) => {
   const { nome, cpf, telefone, email, data_nascimento } = req.body
   if (!nome) return res.status(400).json({ error: 'Nome é obrigatório.' })
@@ -168,11 +173,14 @@ router.post('/criar-e-vincular/:consulta_id', autenticar, async (req, res) => {
   const cpfLimpo = cpf ? cpf.replace(/\D/g, '') : null
   const telLimpo = telefone ? telefone.replace(/\D/g, '') : null
 
-  const novoPac = { nome, clinica_id }
-  if (cpfLimpo)       novoPac.cpf             = cpfLimpo
-  if (telLimpo)       novoPac.telefone        = telLimpo
-  if (email)          novoPac.email           = email
-  if (data_nascimento) novoPac.data_nascimento = data_nascimento
+  const novoPac = {
+    nome,
+    clinica_id,
+    data_nascimento: data_nascimento || DATA_NASC_PLACEHOLDER,
+  }
+  if (cpfLimpo) novoPac.cpf      = cpfLimpo
+  if (telLimpo) novoPac.telefone = telLimpo
+  if (email)    novoPac.email    = email
 
   const { data: pac, error: erroPac } = await supabase
     .from('pacientes').insert([novoPac]).select()
