@@ -11,6 +11,16 @@ const FORM_VAZIO = {
   conduta: '', prescricao: '', retorno_dias: '', observacoes: '',
 }
 
+// Formata datas com segurança — nunca exibe "Invalid Date"
+function fmtData(valor, fallback = '—') {
+  if (!valor) return fallback
+  const str = String(valor)
+  const iso  = /^\d{4}-\d{2}-\d{2}$/.test(str) ? str + 'T12:00:00' : str
+  const d    = new Date(iso)
+  if (isNaN(d.getTime())) return fallback
+  return d.toLocaleDateString('pt-BR')
+}
+
 const sectionTitle = (label) => (
   <div style={{
     fontSize: '0.68rem', fontWeight: 700, color: '#60a5fa',
@@ -111,14 +121,14 @@ export default function MedicoAtendimento() {
                   👤 {paciente?.nome || '—'}
                 </div>
                 <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '4px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                  {paciente?.data_nascimento && <span>🎂 {new Date(paciente.data_nascimento + 'T12:00:00').toLocaleDateString('pt-BR')}</span>}
+                  {paciente?.data_nascimento && <span>🎂 {fmtData(paciente.data_nascimento)}</span>}
                   {paciente?.telefone && <span>📱 {paciente.telefone}</span>}
                   {paciente?.plano_saude && <span>🏥 {paciente.plano_saude}</span>}
                 </div>
               </div>
               {consulta && (
                 <div style={{ textAlign: 'right', fontSize: '0.8rem', color: '#64748b' }}>
-                  <div>📅 {new Date((consulta.data_consulta || '') + 'T12:00:00').toLocaleDateString('pt-BR')}</div>
+                  <div>📅 {fmtData(consulta.data_consulta)}</div>
                   <div>⏰ {consulta.horario || '—'}</div>
                   <div style={{ marginTop: '4px', fontStyle: 'italic', color: '#475569' }}>{consulta.motivo}</div>
                 </div>
@@ -242,10 +252,7 @@ export default function MedicoAtendimento() {
             )}
           </div>
 
-          {/* ═══════════════════════════════════════════════════════════
-               PAINEL DE DOCUMENTOS MÉDICOS — aparece sempre,
-               mas os campos internos ficam desabilitados se soLeitura.
-          ════════════════════════════════════════════════════════════ */}
+          {/* Documentos Médicos */}
           <DocumentosMedicos
             consultaId={consulta_id}
             paciente={paciente}
