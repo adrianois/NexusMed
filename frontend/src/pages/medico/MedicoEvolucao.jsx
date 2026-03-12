@@ -49,20 +49,163 @@ const Campo = ({ label, valor, cor = '#cbd5e1' }) => {
   )
 }
 
-// Agrupa por paciente_id, guardando o nome que já vem em cada registro
 function agruparPorPaciente(lista, nomeFallback) {
   const mapa = {}
   lista.forEach(item => {
     const pid = item.paciente_id
     if (!mapa[pid]) mapa[pid] = {
       paciente_id: pid,
-      // usa paciente_nome retornado pela API; se não existir usa o fallback
       nome: item.paciente_nome || item.paciente?.nome || nomeFallback(pid),
       registros: [],
     }
     mapa[pid].registros.push(item)
   })
   return Object.values(mapa)
+}
+
+// ── Gráfico de linha genérico (SVG inline) ─────────────────────────
+// dados: [{ data: isoString, valor: number }]
+// cor: string hex
+const GraficoLinha = ({ dados, cor = '#6366f1', unidade = '', vazia = 'Sem dados' }) => {
+  if (!dados || !dados.length)
+    return <p style={{ color:'#475569', fontSize:'0.82rem', textAlign:'center', margin:'20px 0' }}>{vazia}</p>
+
+  const W = 500, H = 100, padL = 44, padR = 16, padT = 18, padB = 28
+  const vals  = dados.map(d => d.valor)
+  const max   = Math.max(...vals), min = Math.min(...vals)
+  const range = max - min || 1
+  const iW    = W - padL - padR
+  const iH    = H - padT - padB
+  const px    = (i) => padL + (i / Math.max(dados.length - 1, 1)) * iW
+  const py    = (v) => padT + iH - ((v - min) / range) * iH
+  const pts   = dados.map((d, i) => ({ x: px(i), y: py(d.valor), d }))
+  // linhas de grade
+  const grades = [0, 0.25, 0.5, 0.75, 1].map(f => ({
+    y: padT + iH * (1 - f),
+    v: (min + range * f).toFixed(1),
+  }))
+
+  return (
+    <svg width='100%' viewBox={`0 0 ${W} ${H + padB}`} style={{ overflow:'visible', display:'block' }}>
+      {/* grades */}
+      {grades.map((g, i) => (
+        <g key={i}>
+          <line x1={padL} x2={W - padR} y1={g.y} y2={g.y} stroke='#1e293b' strokeWidth='1' />
+          <text x={padL - 4} y={g.y + 4} textAnchor='end' fill='#475569' fontSize='9'>{g.v}</text>
+        </g>
+      ))}
+      {/* área preenchida */}
+      <defs>
+        <linearGradient id={`grad-${cor.replace('#','')}`} x1='0' y1='0' x2='0' y2='1'>
+          <stop offset='0%'   stopColor={cor} stopOpacity='0.25' />
+          <stop offset='100%' stopColor={cor} stopOpacity='0.02' />
+        </linearGradient>
+      </defs>
+      <polygon
+        points={[
+          `${pts[0].x},${padT + iH}`,
+          ...pts.map(p => `${p.x},${p.y}`),
+          `${pts[pts.length-1].x},${padT + iH}`,
+        ].join(' ')}
+        fill={`url(#grad-${cor.replace('#','')})`}
+      />
+      {/* linha */}
+      <polyline
+        points={pts.map(p => `${p.x},${p.y}`).join(' ')}
+        fill='none' stroke={cor} strokeWidth='2' strokeLinejoin='round' strokeLinecap='round'
+      />
+      {/* pontos + rótulos */}
+      {pts.map((p, i) => (
+        <g key={i}>
+          <circle cx={p.x} cy={p.y} r='3.5' fill={cor} stroke='#0f172a' strokeWidth='1.5' />
+          <text x={p.x} y={p.y - 7} textAnchor='middle' fill={cor} fontSize='9' fontWeight='700'>
+            {p.d.valor}{unidade}
+          </text>
+          <text x={p.x} y={H + padB - 2} textAnchor='middle' fill='#475569' fontSize='8'>
+            {new Date(p.d.data).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' })}
+          </text>
+        </g>
+      ))}
+    </svg>
+  )
+}
+
+// ── Gráfico de barras (tipos) ─────────────────────────────────────
+// dados: [{ label, qtd, cor, icon }]
+const GraficoBarras = ({ dados }) => {
+  const max = Math.max(...dados.map(d => d.qtd), 1)
+  const W = 500, barH = 28, gap = 10
+  const totalH = dados.length * (barH + gap)
+  const padL = 110, padR = 50
+
+  return (
+    <svg width='100%' viewBox={`0 0 ${W} ${totalH}`} style={{ overflow:'visible', display:'block' }}>
+      {dados.map((d, i) => {
+        const barW = ((d.qtd / max) * (W - padL - padR)) || 0
+        const y = i * (barH + gap)
+        return (
+          <g key={d.label}>
+            <text x={padL - 8} y={y + barH / 2 + 4} textAnchor='end' fill='#94a3b8' fontSize='11'>
+              {d.icon} {d.label}
+            </text>
+            <rect x={padL} y={y} width={W - padL - padR} height={barH} fill='#1e293b' rx='6' />
+            {barW > 0 && <rect x={padL} y={y} width={barW} height={barH} fill={d.cor} rx='6' opacity='0.85' />}
+            <text x={padL + barW + 6} y={y + barH / 2 + 4} fill={d.qtd > 0 ? d.cor : '#475569'} fontSize='11' fontWeight='700'>
+              {d.qtd}
+            </text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+// ── Gráfico de pressão (sistol + diastólica) ─────────────────
+// dados: [{ data, sistolica, diastolica }]
+const GraficoPressao = ({ dados, vazia = 'Sem dados de pressão' }) => {
+  if (!dados || !dados.length)
+    return <p style={{ color:'#475569', fontSize:'0.82rem', textAlign:'center', margin:'20px 0' }}>{vazia}</p>
+
+  const W = 500, H = 100, padL = 44, padR = 16, padT = 18, padB = 28
+  const allVals = dados.flatMap(d => [d.sistolica, d.diastolica])
+  const max = Math.max(...allVals) + 10
+  const min = Math.min(...allVals) - 10
+  const range = max - min || 1
+  const iW = W - padL - padR, iH = H - padT - padB
+  const px = i => padL + (i / Math.max(dados.length - 1, 1)) * iW
+  const py = v => padT + iH - ((v - min) / range) * iH
+  const grades = [0, 0.5, 1].map(f => ({ y: padT + iH*(1-f), v: Math.round(min + range*f) }))
+
+  return (
+    <svg width='100%' viewBox={`0 0 ${W} ${H + padB}`} style={{ overflow:'visible', display:'block' }}>
+      {grades.map((g,i) => (
+        <g key={i}>
+          <line x1={padL} x2={W-padR} y1={g.y} y2={g.y} stroke='#1e293b' strokeWidth='1'/>
+          <text x={padL-4} y={g.y+4} textAnchor='end' fill='#475569' fontSize='9'>{g.v}</text>
+        </g>
+      ))}
+      {/* sistólica */}
+      <polyline points={dados.map((d,i)=>`${px(i)},${py(d.sistolica)}`).join(' ')}
+        fill='none' stroke='#f87171' strokeWidth='2' strokeLinejoin='round'/>
+      {/* diastólica */}
+      <polyline points={dados.map((d,i)=>`${px(i)},${py(d.diastolica)}`).join(' ')}
+        fill='none' stroke='#60a5fa' strokeWidth='2' strokeLinejoin='round'/>
+      {dados.map((d,i)=>(
+        <g key={i}>
+          <circle cx={px(i)} cy={py(d.sistolica)}  r='3.5' fill='#f87171' stroke='#0f172a' strokeWidth='1.5'/>
+          <circle cx={px(i)} cy={py(d.diastolica)} r='3.5' fill='#60a5fa' stroke='#0f172a' strokeWidth='1.5'/>
+          <text x={px(i)} y={H+padB-2} textAnchor='middle' fill='#475569' fontSize='8'>
+            {new Date(d.data).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
+          </text>
+        </g>
+      ))}
+      {/* legenda */}
+      <circle cx={padL} cy={H+padB+10} r='4' fill='#f87171'/>
+      <text x={padL+8} y={H+padB+14} fill='#f87171' fontSize='9'>Sistólica</text>
+      <circle cx={padL+70} cy={H+padB+10} r='4' fill='#60a5fa'/>
+      <text x={padL+78} y={H+padB+14} fill='#60a5fa' fontSize='9'>Diastólica</text>
+    </svg>
+  )
 }
 
 export default function MedicoEvolucao() {
@@ -111,7 +254,6 @@ export default function MedicoEvolucao() {
 
   useEffect(() => { carregar(); carregarProntuarios() }, [])
 
-  // nomePaciente: fallback para quando o nome não vem no registro
   const nomePaciente = id => pacientes.find(p => p.id === id)?.nome || id || '—'
 
   const consultasPaciente = useMemo(() =>
@@ -143,12 +285,38 @@ export default function MedicoEvolucao() {
   const gruposEvolucoes   = useMemo(() => agruparPorPaciente(evolucoesFiltradas,  nomePaciente), [evolucoesFiltradas, pacientes])
   const gruposProntuarios = useMemo(() => agruparPorPaciente(prontuariosFiltrados, nomePaciente), [prontuariosFiltrados, pacientes])
 
+  // ── dados para os gráficos (ordena do mais antigo para o mais recente) ──
+  const dadosGraficos = useMemo(() => {
+    const base = filtroPac ? evolucoes.filter(e => e.paciente_id === filtroPac) : evolucoes
+    const ordenado = [...base].sort((a, b) => new Date(a.data_registro) - new Date(b.data_registro))
+
+    const peso     = ordenado.filter(e => e.peso)       .map(e => ({ data: e.data_registro, valor: parseFloat(e.peso) }))
+    const temp     = ordenado.filter(e => e.temperatura) .map(e => ({ data: e.data_registro, valor: parseFloat(e.temperatura) }))
+    const sat      = ordenado.filter(e => e.saturacao)   .map(e => ({ data: e.data_registro, valor: parseFloat(e.saturacao) }))
+    const glicemia = ordenado.filter(e => e.glicemia)    .map(e => ({ data: e.data_registro, valor: parseFloat(e.glicemia) }))
+
+    // pressão: separa sistolica/diastolica do formato "120/80"
+    const pressao = ordenado
+      .filter(e => e.pressao && e.pressao.includes('/'))
+      .map(e => {
+        const [s, d] = e.pressao.split('/').map(Number)
+        return isNaN(s) || isNaN(d) ? null : { data: e.data_registro, sistolica: s, diastolica: d }
+      })
+      .filter(Boolean)
+
+    const tiposBar = Object.entries(TIPO_CFG).map(([tipo, cfg]) => ({
+      label: cfg.label, icon: cfg.icon, cor: cfg.cor,
+      qtd: base.filter(e => e.tipo === tipo).length,
+    }))
+
+    return { peso, temp, sat, glicemia, pressao, tiposBar, total: base.length }
+  }, [evolucoes, filtroPac])
+
   const stats = useMemo(() => {
     const lista = filtroPac ? evolucoes.filter(e => e.paciente_id === filtroPac) : evolucoes
     return {
       total:      lista.length,
       tipos:      Object.keys(TIPO_CFG).map(t => ({ tipo: t, qtd: lista.filter(e => e.tipo === t).length })),
-      ultPesos:   lista.filter(e => e.peso).map(e => ({ data: e.data_registro, valor: parseFloat(e.peso) })).reverse().slice(-6),
       ultPressao: lista.filter(e => e.pressao)[0]?.pressao || null,
       ultSat:     lista.filter(e => e.saturacao)[0]?.saturacao || null,
     }
@@ -203,28 +371,6 @@ export default function MedicoEvolucao() {
     </div>
   )
 
-  const GraficoPeso = ({ dados }) => {
-    if (!dados.length) return <p style={{ color:'#475569', fontSize:'0.85rem', textAlign:'center', margin:'16px 0' }}>Nenhum registro de peso.</p>
-    const max = Math.max(...dados.map(d => d.valor)), min = Math.min(...dados.map(d => d.valor))
-    const range = max - min || 1, W = 340, H = 80, pad = 30
-    const pts = dados.map((d, i) => ({ x: pad+(i/Math.max(dados.length-1,1))*(W-pad*2), y: H-10-((d.valor-min)/range)*(H-20), d }))
-    return (
-      <svg width='100%' viewBox={`0 0 ${W} ${H+20}`} style={{ overflow:'visible' }}>
-        <polyline points={pts.map(p=>`${p.x},${p.y}`).join(' ')} fill='none' stroke='#6366f1' strokeWidth='2.5' strokeLinejoin='round' />
-        {pts.map((p,i) => (
-          <g key={i}>
-            <circle cx={p.x} cy={p.y} r='4' fill='#6366f1' />
-            <text x={p.x} y={p.y-8} textAnchor='middle' fill='#a5b4fc' fontSize='10'>{p.d.valor}</text>
-            <text x={p.x} y={H+16} textAnchor='middle' fill='#475569' fontSize='9'>
-              {new Date(p.d.data).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
-            </text>
-          </g>
-        ))}
-      </svg>
-    )
-  }
-
-  // Cabeçalho do grupo — recebe o nome já resolvido
   const CabecalhoPaciente = ({ pid, nome, qtd, corBorda = '#6366f1', badge }) => {
     const aberto = expandidoPac[pid] !== false
     return (
@@ -263,6 +409,18 @@ export default function MedicoEvolucao() {
     fontFamily:'inherit', transition:'all 0.2s',
   })
 
+  // wrapper de cada card de gráfico
+  const CardGrafico = ({ titulo, icon, cor, children }) => (
+    <div style={{ background:'#1e293b', border:`1px solid ${cor}22`, borderRadius:'14px',
+      padding:'18px 20px', marginBottom:'16px' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'14px' }}>
+        <span style={{ fontSize:'1.1rem' }}>{icon}</span>
+        <span style={{ color: cor, fontWeight:700, fontSize:'0.88rem', textTransform:'uppercase', letterSpacing:'0.8px' }}>{titulo}</span>
+      </div>
+      {children}
+    </div>
+  )
+
   return (
     <PageLayout title='📊 Evolução do Paciente'>
       <ConfirmModalUI /><ToastUI />
@@ -285,50 +443,27 @@ export default function MedicoEvolucao() {
       {/* Abas */}
       <div style={{ display:'flex', borderBottom:'1px solid #1e293b', marginBottom:'20px' }}>
         <button style={tabStyle(aba==='evolucoes')} onClick={() => { setAba('evolucoes'); setMostrarForm(false) }}>
-          📝 Evoluções {!filtroPac && gruposEvolucoes.length > 0 && `(${gruposEvolucoes.length} paciente${gruposEvolucoes.length!==1?'s':''})`}
+          📝 Evoluções {!filtroPac && gruposEvolucoes.length > 0 && `(${gruposEvolucoes.length} pac.)`}
         </button>
         <button style={tabStyle(aba==='atendimentos')} onClick={() => setAba('atendimentos')}>
-          📂 Atendimentos {!filtroPac && gruposProntuarios.length > 0 && `(${gruposProntuarios.length} paciente${gruposProntuarios.length!==1?'s':''})`}
+          📂 Atendimentos {!filtroPac && gruposProntuarios.length > 0 && `(${gruposProntuarios.length} pac.)`}
+        </button>
+        <button style={tabStyle(aba==='graficos')} onClick={() => setAba('graficos')}>
+          📈 Gráficos {filtroPac && dadosGraficos.total > 0 && `(${dadosGraficos.total} reg.)`}
         </button>
       </div>
 
-      {/* Dashboard */}
+      {/* ── CARDS RESUMO (só com paciente filtrado) ── */}
       {filtroPac && (
-        <div style={{ marginBottom:'24px' }}>
-          <h3 style={{ color:'#94a3b8', fontSize:'0.85rem', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'12px' }}>
-            📊 Dashboard — {nomePaciente(filtroPac)}
-          </h3>
-          <div style={{ display:'flex', gap:'12px', flexWrap:'wrap', marginBottom:'16px' }}>
-            {card('Evoluções', stats.total, '#60a5fa', '📝')}
-            {card('Atendimentos', prontuariosFiltrados.length, '#a78bfa', '📂')}
-            {card('Últ. Pressão', stats.ultPressao ? `${stats.ultPressao} mmHg` : null, '#f87171', '🩺')}
-            {card('Últ. Sat.', stats.ultSat ? `${stats.ultSat}%` : null, '#4ade80', '💓')}
-          </div>
-          {stats.tipos.filter(t=>t.qtd>0).length > 0 && (
-            <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', marginBottom:'16px' }}>
-              {stats.tipos.filter(t=>t.qtd>0).map(t => {
-                const cfg = TIPO_CFG[t.tipo]
-                return (
-                  <div key={t.tipo} style={{ background:'#1e293b', border:`1px solid ${cfg.cor}33`,
-                    borderRadius:'8px', padding:'8px 16px', display:'flex', alignItems:'center', gap:'8px' }}>
-                    <span>{cfg.icon}</span>
-                    <span style={{ color:cfg.cor, fontWeight:700, fontSize:'0.9rem' }}>{t.qtd}</span>
-                    <span style={{ color:'#64748b', fontSize:'0.8rem' }}>{cfg.label}</span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-          {stats.ultPesos.length > 0 && (
-            <div style={{ background:'#1e293b', border:'1px solid #334155', borderRadius:'12px', padding:'16px 20px', marginBottom:'8px' }}>
-              <div style={{ color:'#94a3b8', fontSize:'0.8rem', marginBottom:'8px' }}>⚖️ Evolução do Peso (kg)</div>
-              <GraficoPeso dados={stats.ultPesos} />
-            </div>
-          )}
+        <div style={{ display:'flex', gap:'12px', flexWrap:'wrap', marginBottom:'20px' }}>
+          {card('Evoluções', stats.total,                '#60a5fa', '📝')}
+          {card('Atendimentos', prontuariosFiltrados.length, '#a78bfa', '📂')}
+          {card('Últ. Pressão', stats.ultPressao ? `${stats.ultPressao}` : null, '#f87171', '🩺')}
+          {card('Últ. Sat.', stats.ultSat ? `${stats.ultSat}%` : null, '#4ade80', '💓')}
         </div>
       )}
 
-      {/* ══ ABA EVOLUÇÕES ═══════════════════════════════════════ */}
+      {/* ══ ABA EVOLUÇÕES ═══════════════════════════════════ */}
       {aba === 'evolucoes' && (
         <>
           {mostrarForm && (
@@ -389,7 +524,6 @@ export default function MedicoEvolucao() {
               </form>
             </div>
           )}
-
           {loading && <p className='page-loading'>Carregando...</p>}
           {!loading && (
             <>
@@ -406,7 +540,7 @@ export default function MedicoEvolucao() {
                 return (
                   <div key={pid} style={{ marginBottom:'16px' }}>
                     <CabecalhoPaciente pid={pid} nome={nome} qtd={registros.length} corBorda='#60a5fa'
-                      badge={ultData ? `Último registro: ${ultData}` : undefined} />
+                      badge={ultData ? `Último: ${ultData}` : undefined} />
                     {aberto && (
                       <div style={{ border:'1px solid #1e293b', borderTop:'none',
                         borderBottomLeftRadius:'10px', borderBottomRightRadius:'10px',
@@ -421,9 +555,7 @@ export default function MedicoEvolucao() {
                             <div key={e.id} style={{ display:'flex', gap:'16px', marginBottom:'16px', position:'relative', zIndex:1 }}>
                               <div style={{ width:'40px', height:'40px', borderRadius:'50%', flexShrink:0,
                                 background:`${cfg.cor}22`, border:`2px solid ${cfg.cor}`,
-                                display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.1rem', zIndex:2 }}>
-                                {cfg.icon}
-                              </div>
+                                display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.1rem', zIndex:2 }}>{cfg.icon}</div>
                               <div style={{ flex:1, background:'#1e293b', border:'1px solid #334155',
                                 borderLeft:`3px solid ${cfg.cor}`, borderRadius:'10px', padding:'12px 16px' }}>
                                 <div style={{ display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:'6px' }}>
@@ -455,7 +587,7 @@ export default function MedicoEvolucao() {
         </>
       )}
 
-      {/* ══ ABA ATENDIMENTOS ═════════════════════════════════ */}
+      {/* ══ ABA ATENDIMENTOS ═════════════════════════════ */}
       {aba === 'atendimentos' && (
         <>
           <div style={{ marginBottom:'16px' }}>
@@ -481,7 +613,7 @@ export default function MedicoEvolucao() {
                 return (
                   <div key={pid} style={{ marginBottom:'16px' }}>
                     <CabecalhoPaciente pid={pid} nome={nome} qtd={registros.length} corBorda='#6366f1'
-                      badge={ultData ? `Último atendimento: ${ultData}` : undefined} />
+                      badge={ultData ? `Último: ${ultData}` : undefined} />
                     {aberto && (
                       <div style={{ border:'1px solid #1e293b', borderTop:'none',
                         borderBottomLeftRadius:'10px', borderBottomRightRadius:'10px',
@@ -539,6 +671,97 @@ export default function MedicoEvolucao() {
                   </div>
                 )
               })}
+            </>
+          )}
+        </>
+      )}
+
+      {/* ══ ABA GRÁFICOS ═════════════════════════════════════ */}
+      {aba === 'graficos' && (
+        <>
+          {!filtroPac && (
+            <div style={{ textAlign:'center', color:'#475569', padding:'48px 20px' }}>
+              <div style={{ fontSize:'3rem', marginBottom:'12px' }}>📈</div>
+              <p style={{ fontSize:'0.95rem' }}>Selecione um <strong style={{ color:'#a5b4fc' }}>paciente</strong> no filtro acima para visualizar os gráficos de evolução.</p>
+            </div>
+          )}
+
+          {filtroPac && dadosGraficos.total === 0 && (
+            <div style={{ textAlign:'center', color:'#475569', padding:'48px 20px' }}>
+              <div style={{ fontSize:'3rem', marginBottom:'12px' }}>📈</div>
+              <p>Nenhuma evolução registrada para <strong style={{ color:'#a5b4fc' }}>{nomePaciente(filtroPac)}</strong>.</p>
+            </div>
+          )}
+
+          {filtroPac && dadosGraficos.total > 0 && (
+            <>
+              <p style={{ color:'#64748b', fontSize:'0.82rem', marginBottom:'20px' }}>
+                Exibindo evolução de <strong style={{ color:'#e2e8f0' }}>{nomePaciente(filtroPac)}</strong> com base em {dadosGraficos.total} registro{dadosGraficos.total !== 1 ? 's' : ''}.
+              </p>
+
+              {/* 2 colunas em telas grandes */}
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))', gap:'16px' }}>
+
+                <CardGrafico titulo='Peso Corporal' icon='⚖️' cor='#6366f1'>
+                  <GraficoLinha dados={dadosGraficos.peso} cor='#6366f1' unidade='' vazia='Sem registros de peso.' />
+                  {dadosGraficos.peso.length > 0 && (
+                    <div style={{ display:'flex', gap:'16px', marginTop:'8px', fontSize:'0.78rem', color:'#64748b' }}>
+                      <span>↘️ Mín: <strong style={{ color:'#a5b4fc' }}>{Math.min(...dadosGraficos.peso.map(d=>d.valor))} kg</strong></span>
+                      <span>↗️ Máx: <strong style={{ color:'#a5b4fc' }}>{Math.max(...dadosGraficos.peso.map(d=>d.valor))} kg</strong></span>
+                      <span>📌 Últ: <strong style={{ color:'#a5b4fc' }}>{dadosGraficos.peso.at(-1).valor} kg</strong></span>
+                    </div>
+                  )}
+                </CardGrafico>
+
+                <CardGrafico titulo='Temperatura (°C)' icon='🌡️' cor='#f59e0b'>
+                  <GraficoLinha dados={dadosGraficos.temp} cor='#f59e0b' unidade='°' vazia='Sem registros de temperatura.' />
+                  {dadosGraficos.temp.length > 0 && (
+                    <div style={{ display:'flex', gap:'16px', marginTop:'8px', fontSize:'0.78rem', color:'#64748b' }}>
+                      <span>↘️ Mín: <strong style={{ color:'#fbbf24' }}>{Math.min(...dadosGraficos.temp.map(d=>d.valor))}°C</strong></span>
+                      <span>↗️ Máx: <strong style={{ color:'#fbbf24' }}>{Math.max(...dadosGraficos.temp.map(d=>d.valor))}°C</strong></span>
+                      <span>📌 Últ: <strong style={{ color:'#fbbf24' }}>{dadosGraficos.temp.at(-1).valor}°C</strong></span>
+                    </div>
+                  )}
+                </CardGrafico>
+
+                <CardGrafico titulo='Saturação O₂ (%)' icon='💓' cor='#4ade80'>
+                  <GraficoLinha dados={dadosGraficos.sat} cor='#4ade80' unidade='%' vazia='Sem registros de saturação.' />
+                  {dadosGraficos.sat.length > 0 && (
+                    <div style={{ display:'flex', gap:'16px', marginTop:'8px', fontSize:'0.78rem', color:'#64748b' }}>
+                      <span>↘️ Mín: <strong style={{ color:'#4ade80' }}>{Math.min(...dadosGraficos.sat.map(d=>d.valor))}%</strong></span>
+                      <span>↗️ Máx: <strong style={{ color:'#4ade80' }}>{Math.max(...dadosGraficos.sat.map(d=>d.valor))}%</strong></span>
+                      <span>📌 Últ: <strong style={{ color:'#4ade80' }}>{dadosGraficos.sat.at(-1).valor}%</strong></span>
+                    </div>
+                  )}
+                </CardGrafico>
+
+                <CardGrafico titulo='Glicemia (mg/dL)' icon='🩸' cor='#f87171'>
+                  <GraficoLinha dados={dadosGraficos.glicemia} cor='#f87171' unidade='' vazia='Sem registros de glicemia.' />
+                  {dadosGraficos.glicemia.length > 0 && (
+                    <div style={{ display:'flex', gap:'16px', marginTop:'8px', fontSize:'0.78rem', color:'#64748b' }}>
+                      <span>↘️ Mín: <strong style={{ color:'#f87171' }}>{Math.min(...dadosGraficos.glicemia.map(d=>d.valor))} mg/dL</strong></span>
+                      <span>↗️ Máx: <strong style={{ color:'#f87171' }}>{Math.max(...dadosGraficos.glicemia.map(d=>d.valor))} mg/dL</strong></span>
+                      <span>📌 Últ: <strong style={{ color:'#f87171' }}>{dadosGraficos.glicemia.at(-1).valor} mg/dL</strong></span>
+                    </div>
+                  )}
+                </CardGrafico>
+
+              </div>
+
+              {/* Pressão em linha completa */}
+              <CardGrafico titulo='Pressão Arterial (mmHg)' icon='🩺' cor='#f87171'>
+                <GraficoPressao dados={dadosGraficos.pressao} />
+                {dadosGraficos.pressao.length > 0 && (
+                  <div style={{ display:'flex', gap:'16px', marginTop:'16px', fontSize:'0.78rem', color:'#64748b' }}>
+                    <span>📌 Últ: <strong style={{ color:'#f87171' }}>{dadosGraficos.pressao.at(-1).sistolica}</strong><span style={{ color:'#60a5fa' }}>/{dadosGraficos.pressao.at(-1).diastolica}</span> mmHg</span>
+                  </div>
+                )}
+              </CardGrafico>
+
+              {/* Barras por tipo */}
+              <CardGrafico titulo='Evoluções por Tipo' icon='📊' cor='#a78bfa'>
+                <GraficoBarras dados={dadosGraficos.tiposBar} />
+              </CardGrafico>
             </>
           )}
         </>
