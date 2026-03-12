@@ -11,14 +11,15 @@ const FORM_INICIAL = {
 }
 
 export default function AdminClinicas() {
-  const [clinicas,     setClinicas]     = useState([])
-  const [loading,      setLoading]      = useState(true)
-  const [mostrarForm,  setMostrarForm]  = useState(false)
-  const [salvando,     setSalvando]     = useState(false)
-  const [buscandoCep,  setBuscandoCep]  = useState(false)
-  const [form,         setForm]         = useState(FORM_INICIAL)
-  const { confirmar,   ConfirmModalUI } = useConfirm()
-  const { toast,       ToastUI }        = useToast()
+  const [clinicas,    setClinicas]    = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [mostrarForm, setMostrarForm] = useState(false)
+  const [editando,    setEditando]    = useState(null) // id da clínica em edição
+  const [salvando,    setSalvando]    = useState(false)
+  const [buscandoCep, setBuscandoCep] = useState(false)
+  const [form,        setForm]        = useState(FORM_INICIAL)
+  const { confirmar,  ConfirmModalUI} = useConfirm()
+  const { toast,      ToastUI }       = useToast()
 
   const carregar = () => {
     setLoading(true)
@@ -42,25 +43,77 @@ export default function AdminClinicas() {
     }
   }
 
+  const abrirNovo = () => {
+    setForm(FORM_INICIAL)
+    setEditando(null)
+    setMostrarForm(true)
+  }
+
+  const abrirEditar = (c) => {
+    setForm({
+      nome:        c.nome        || '',
+      cnpj:        c.cnpj        || '',
+      telefone:    c.telefone    || '',
+      email:       c.email       || '',
+      cep:         c.cep         || '',
+      logradouro:  c.logradouro  || '',
+      numero:      c.numero      || '',
+      complemento: c.complemento || '',
+      bairro:      c.bairro      || '',
+      cidade:      c.cidade      || '',
+      estado:      c.estado      || '',
+      usa_triagem: c.usa_triagem || false,
+    })
+    setEditando(c.id)
+    setMostrarForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const cancelar = () => {
+    setMostrarForm(false)
+    setEditando(null)
+    setForm(FORM_INICIAL)
+  }
+
   const handleSubmit = async e => {
     e.preventDefault()
     if (!form.nome || !form.cnpj) { toast('Nome e CNPJ são obrigatórios!', 'error'); return }
     setSalvando(true)
     const enderecoStr = [form.logradouro, form.numero, form.bairro, form.cidade, form.estado].filter(Boolean).join(', ')
     try {
-      await api.post('/admin/clinicas', { ...form, endereco: enderecoStr })
-      toast('Clínica cadastrada com sucesso!', 'success')
-      setForm(FORM_INICIAL); setMostrarForm(false); carregar()
+      if (editando) {
+        await api.put(`/admin/clinicas/${editando}`, { ...form, endereco: enderecoStr })
+        toast('Clínica atualizada com sucesso!', 'success')
+      } else {
+        await api.post('/admin/clinicas', { ...form, endereco: enderecoStr })
+        toast('Clínica cadastrada com sucesso!', 'success')
+      }
+      cancelar(); carregar()
     } catch (err) { toast('Erro: ' + (err.response?.data?.error || err.message), 'error') }
     finally { setSalvando(false) }
   }
 
+  const excluir = async (id, nome) => {
+    const ok = await confirmar({
+      titulo:   'Excluir Clínica',
+      mensagem: `Deseja excluir permanentemente a clínica "${nome}"? Esta ação não pode ser desfeita.`,
+      labelOk:  'Excluir',
+      tipo:     'danger',
+    })
+    if (!ok) return
+    try {
+      await api.delete(`/admin/clinicas/${id}`)
+      toast('Clínica excluída com sucesso.', 'success')
+      carregar()
+    } catch (err) { toast('Erro: ' + (err.response?.data?.error || err.message), 'error') }
+  }
+
   const toggleStatus = async (id, ativo, nome) => {
     const ok = await confirmar({
-      titulo: ativo ? 'Desativar Clínica' : 'Ativar Clínica',
+      titulo:   ativo ? 'Desativar Clínica' : 'Ativar Clínica',
       mensagem: `Deseja ${ativo ? 'desativar' : 'ativar'} a clínica "${nome}"?`,
-      labelOk: ativo ? 'Desativar' : 'Ativar',
-      tipo: ativo ? 'warning' : 'success',
+      labelOk:  ativo ? 'Desativar' : 'Ativar',
+      tipo:     ativo ? 'warning' : 'success',
     })
     if (!ok) return
     try {
@@ -83,15 +136,14 @@ export default function AdminClinicas() {
       <ConfirmModalUI /><ToastUI />
 
       <div className='inner-toolbar'>
-        <button className={`btn ${mostrarForm ? 'btn-secondary' : 'btn-primary'}`}
-          onClick={() => setMostrarForm(!mostrarForm)}>
+        <button className={`btn ${mostrarForm ? 'btn-secondary' : 'btn-primary'}`} onClick={() => mostrarForm ? cancelar() : abrirNovo()}>
           {mostrarForm ? '✖ Cancelar' : '+ Nova Clínica'}
         </button>
       </div>
 
       {mostrarForm && (
         <div className='inner-card'>
-          <h3 className='inner-card-title'>Cadastrar Nova Clínica</h3>
+          <h3 className='inner-card-title'>{editando ? '✏️ Editar Clínica' : 'Cadastrar Nova Clínica'}</h3>
           <form onSubmit={handleSubmit} className='inner-form'>
             <div className='form-field form-field--full'>
               <label className='form-label'>Nome da Clínica <span className='required'>*</span></label>
@@ -151,10 +203,9 @@ export default function AdminClinicas() {
             </div>
             <div className='form-actions'>
               <button type='submit' className='btn btn-success' disabled={salvando}>
-                {salvando ? 'Salvando...' : '✓ Salvar Clínica'}
+                {salvando ? 'Salvando...' : editando ? '✓ Atualizar Clínica' : '✓ Salvar Clínica'}
               </button>
-              <button type='button' className='btn btn-secondary'
-                onClick={() => { setMostrarForm(false); setForm(FORM_INICIAL) }}>Cancelar</button>
+              <button type='button' className='btn btn-secondary' onClick={cancelar}>Cancelar</button>
             </div>
           </form>
         </div>
@@ -164,14 +215,24 @@ export default function AdminClinicas() {
       {!loading && (
         <div className='table-wrapper'>
           <table className='data-table'>
-            <thead><tr><th>Nome</th><th>CNPJ</th><th>Telefone</th><th>Triagem</th><th>Status</th><th>Ações</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Nome</th><th>CNPJ</th><th>Telefone</th><th>Endereço</th>
+                <th>Triagem</th><th>Status</th><th>Ações</th>
+              </tr>
+            </thead>
             <tbody>
-              {clinicas.length === 0 && <tr><td colSpan={6} style={{textAlign:'center',color:'#64748b',padding:'2rem'}}>Nenhuma clínica cadastrada.</td></tr>}
+              {clinicas.length === 0 && (
+                <tr><td colSpan={7} style={{textAlign:'center',color:'#64748b',padding:'2rem'}}>Nenhuma clínica cadastrada.</td></tr>
+              )}
               {clinicas.map(c => (
                 <tr key={c.id}>
                   <td style={{fontWeight:600}}>{c.nome}</td>
                   <td style={{color:'#94a3b8',fontSize:'0.85rem'}}>{c.cnpj}</td>
                   <td>{c.telefone||'—'}</td>
+                  <td style={{fontSize:'0.8rem',color:'#94a3b8',maxWidth:'200px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                    {c.logradouro ? `${c.logradouro}${c.numero ? ', '+c.numero : ''}${c.cidade ? ' — '+c.cidade : ''}` : '—'}
+                  </td>
                   <td>
                     <button onClick={() => toggleTriagem(c.id, c.usa_triagem, c.nome)} style={{
                       background: c.usa_triagem ? 'rgba(34,197,94,0.12)' : 'rgba(100,116,139,0.1)',
@@ -185,11 +246,24 @@ export default function AdminClinicas() {
                     <span className={`badge badge-${c.ativo ? 'ativo' : 'inativo'}`}>{c.ativo ? 'Ativa' : 'Inativa'}</span>
                   </td>
                   <td>
-                    <button className={`btn btn-${c.ativo ? 'warning' : 'success'}`}
-                      style={{fontSize:'0.78rem',padding:'5px 12px'}}
-                      onClick={() => toggleStatus(c.id, c.ativo, c.nome)}>
-                      {c.ativo ? '⏸ Desativar' : '▶ Ativar'}
-                    </button>
+                    <div style={{display:'flex',gap:'5px',flexWrap:'wrap'}}>
+                      {/* Editar */}
+                      <button className='btn btn-secondary' style={{fontSize:'0.78rem',padding:'5px 10px'}}
+                        onClick={() => abrirEditar(c)} title='Editar clínica'>
+                        ✏️ Editar
+                      </button>
+                      {/* Ativar / Desativar */}
+                      <button className={`btn btn-${c.ativo ? 'warning' : 'success'}`}
+                        style={{fontSize:'0.78rem',padding:'5px 10px'}}
+                        onClick={() => toggleStatus(c.id, c.ativo, c.nome)}>
+                        {c.ativo ? '⏸ Desativar' : '▶ Ativar'}
+                      </button>
+                      {/* Excluir */}
+                      <button className='btn btn-danger' style={{fontSize:'0.78rem',padding:'5px 10px'}}
+                        onClick={() => excluir(c.id, c.nome)} title='Excluir clínica'>
+                        🗑️ Excluir
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
