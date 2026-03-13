@@ -16,12 +16,14 @@ router.get('/clinicas', async (req, res) => {
 // POST /admin/clinicas
 router.post('/clinicas', async (req, res) => {
   const { nome, cnpj, endereco, telefone, email,
-    cep, logradouro, numero, complemento, bairro, cidade, estado, usa_triagem } = req.body
+    cep, logradouro, numero, complemento, bairro, cidade, estado, usa_triagem, logo_url } = req.body
   if (!nome || !cnpj) return res.status(400).json({ error: 'Nome e CNPJ obrigatorios.' })
   const { data, error } = await supabase.from('clinicas')
     .insert([{ nome, cnpj, endereco, telefone, email,
       cep, logradouro, numero, complemento, bairro, cidade, estado,
-      usa_triagem: usa_triagem === true || usa_triagem === 'true', ativo: true }])
+      usa_triagem: usa_triagem === true || usa_triagem === 'true',
+      logo_url: logo_url || null,
+      ativo: true }])
     .select()
   if (error) return res.status(400).json({ error: error.message })
   await registrarLog({ usuario: req.usuario, acao: 'criar', tabela: 'clinicas', registro_id: data[0].id, detalhes: { nome, cnpj } })
@@ -31,14 +33,15 @@ router.post('/clinicas', async (req, res) => {
 // PUT /admin/clinicas/:id
 router.put('/clinicas/:id', async (req, res) => {
   const { nome, cnpj, telefone, email,
-    cep, logradouro, numero, complemento, bairro, cidade, estado, usa_triagem } = req.body
+    cep, logradouro, numero, complemento, bairro, cidade, estado, usa_triagem, logo_url } = req.body
   if (!nome || !cnpj) return res.status(400).json({ error: 'Nome e CNPJ obrigatorios.' })
   const enderecoStr = [logradouro, numero, bairro, cidade, estado].filter(Boolean).join(', ')
   const { data, error } = await supabase.from('clinicas')
     .update({ nome, cnpj, telefone, email,
       cep, logradouro, numero, complemento, bairro, cidade, estado,
       endereco: enderecoStr,
-      usa_triagem: usa_triagem === true || usa_triagem === 'true' })
+      usa_triagem: usa_triagem === true || usa_triagem === 'true',
+      logo_url: logo_url !== undefined ? (logo_url || null) : undefined })
     .eq('id', req.params.id).select()
   if (error) return res.status(400).json({ error: error.message })
   if (!data?.length) return res.status(404).json({ error: 'Clínica não encontrada.' })
@@ -48,7 +51,6 @@ router.put('/clinicas/:id', async (req, res) => {
 
 // DELETE /admin/clinicas/:id
 router.delete('/clinicas/:id', async (req, res) => {
-  // Verifica se há usuários vinculados
   const { data: usuarios } = await supabase.from('usuarios').select('id').eq('clinica_id', req.params.id).limit(1)
   if (usuarios?.length > 0)
     return res.status(400).json({ error: 'Não é possível excluir: clínica possui usuários vinculados.' })
