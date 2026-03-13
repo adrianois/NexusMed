@@ -257,29 +257,27 @@ export default function Triagem() {
           {/* Botões da barra de controles */}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
 
-            {/* Botão Exportar Lista PDF */}
+            {/* Botão Gerar PDF da lista — mesmo padrão de Consultas */}
             <button
               onClick={gerarListaPDF}
               disabled={gerandoLista || consultasFiltradas.length === 0}
-              title={consultasFiltradas.length === 0 ? 'Nenhum registro para exportar' : `Exportar ${consultasFiltradas.length} registro(s) em PDF`}
+              title={`Gerar PDF com ${consultasFiltradas.length} registro(s) exibido(s)`}
               style={{
-                background: consultasFiltradas.length === 0 ? 'rgba(30,41,59,0.4)' : 'rgba(99,102,241,0.15)',
-                border: `1px solid ${consultasFiltradas.length === 0 ? 'rgba(255,255,255,0.06)' : 'rgba(99,102,241,0.45)'}`,
+                display: 'flex', alignItems: 'center', gap: '6px',
+                background: consultasFiltradas.length === 0 ? '#1e293b' : '#dc2626',
+                color: '#fff',
+                border: 'none',
                 borderRadius: '8px',
-                color: consultasFiltradas.length === 0 ? '#475569' : '#a5b4fc',
+                padding: '8px 16px',
                 fontSize: '0.82rem',
                 fontWeight: 700,
-                padding: '8px 16px',
-                whiteSpace: 'nowrap',
                 cursor: (gerandoLista || consultasFiltradas.length === 0) ? 'not-allowed' : 'pointer',
-                opacity: gerandoLista ? 0.6 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'all 0.2s',
+                opacity: (gerandoLista || consultasFiltradas.length === 0) ? 0.5 : 1,
+                transition: 'background 0.2s',
+                whiteSpace: 'nowrap',
               }}
             >
-              📋 {gerandoLista ? 'Gerando...' : `Exportar Lista${consultasFiltradas.length > 0 ? ` (${consultasFiltradas.length})` : ''}`}
+              📄 {gerandoLista ? 'Gerando...' : `Gerar PDF (${consultasFiltradas.length})`}
             </button>
 
             <button className='btn btn-secondary' onClick={carregar}>
