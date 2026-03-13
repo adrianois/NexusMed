@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api from '../api'
 import PageLayout from '../components/PageLayout'
 import { generateTriagemPDF } from '../utils/generateTriagemPDF'
+import { generateTriagemListaPDF } from '../utils/generateTriagemListaPDF'
 import './InnerPage.css'
 
 const PRIORIDADE_CFG = {
@@ -32,7 +33,6 @@ const SINAIS = [
   { name: 'saturacao_oxigenio',  label: 'Saturação O₂',    placeholder: '98 %',   icon: '💧'  },
 ]
 
-// Estilo reutilizável para o botão PDF
 const btnPdfStyle = (gerando) => ({
   background: 'rgba(33,128,141,0.15)',
   border: '1px solid rgba(33,128,141,0.5)',
@@ -95,6 +95,7 @@ export default function Triagem() {
   const [dashboard,    setDashboard]    = useState(null)
   const [filtroStatus, setFiltroStatus] = useState('')
   const [gerando,      setGerando]      = useState(false)
+  const [gerandoLista, setGerandoLista] = useState(false)
   const [toast,        setToast]        = useState(null)
 
   const carregar = useCallback(async () => {
@@ -156,6 +157,20 @@ export default function Triagem() {
     }
   }
 
+  const gerarListaPDF = () => {
+    try {
+      setGerandoLista(true)
+      generateTriagemListaPDF(consultasFiltradas, pacientes, medicos, dataSel, filtroStatus)
+      const total = consultasFiltradas.length
+      setToast(`Relatório com ${total} registro(s) gerado com sucesso!`)
+    } catch (err) {
+      console.error('Erro ao gerar PDF da lista:', err)
+      alert('Erro ao gerar PDF: ' + err.message)
+    } finally {
+      setGerandoLista(false)
+    }
+  }
+
   const fecharModal = () => { setModalId(null); setForm(FORM_VAZIO) }
   const handleForm  = e  => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
 
@@ -189,7 +204,6 @@ export default function Triagem() {
   return (
     <PageLayout title='🩺 Triagem / Pré-atendimento'>
 
-      {/* Toast de sucesso */}
       {toast && <ToastSucesso mensagem={toast} onClose={() => setToast(null)} />}
 
       {/* Cards resumo */}
@@ -239,9 +253,39 @@ export default function Triagem() {
               <option value='triado'>Triados</option>
             </select>
           </div>
-          <button className='btn btn-secondary' style={{ marginLeft: 'auto' }} onClick={carregar}>
-            🔄 Atualizar
-          </button>
+
+          {/* Botões da barra de controles */}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+
+            {/* Botão Exportar Lista PDF */}
+            <button
+              onClick={gerarListaPDF}
+              disabled={gerandoLista || consultasFiltradas.length === 0}
+              title={consultasFiltradas.length === 0 ? 'Nenhum registro para exportar' : `Exportar ${consultasFiltradas.length} registro(s) em PDF`}
+              style={{
+                background: consultasFiltradas.length === 0 ? 'rgba(30,41,59,0.4)' : 'rgba(99,102,241,0.15)',
+                border: `1px solid ${consultasFiltradas.length === 0 ? 'rgba(255,255,255,0.06)' : 'rgba(99,102,241,0.45)'}`,
+                borderRadius: '8px',
+                color: consultasFiltradas.length === 0 ? '#475569' : '#a5b4fc',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                padding: '8px 16px',
+                whiteSpace: 'nowrap',
+                cursor: (gerandoLista || consultasFiltradas.length === 0) ? 'not-allowed' : 'pointer',
+                opacity: gerandoLista ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.2s',
+              }}
+            >
+              📋 {gerandoLista ? 'Gerando...' : `Exportar Lista${consultasFiltradas.length > 0 ? ` (${consultasFiltradas.length})` : ''}`}
+            </button>
+
+            <button className='btn btn-secondary' onClick={carregar}>
+              🔄 Atualizar
+            </button>
+          </div>
         </div>
       </div>
 
@@ -268,13 +312,11 @@ export default function Triagem() {
                 display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap',
               }}>
 
-                {/* Horário */}
                 <div style={{ minWidth: '48px', textAlign: 'center' }}>
                   <div style={{ fontSize: '1rem', fontWeight: 800, color: '#f1f5f9' }}>{c.horario || '—'}</div>
                   <div style={{ fontSize: '0.62rem', color: '#475569', marginTop: '2px' }}>horário</div>
                 </div>
 
-                {/* Paciente */}
                 <div style={{ flex: 1, minWidth: '150px' }}>
                   <div style={{ fontWeight: 700, color: '#e2e8f0', fontSize: '0.93rem' }}>{nomePaciente(c.paciente_id)}</div>
                   <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: '2px' }}>
@@ -287,7 +329,6 @@ export default function Triagem() {
                   )}
                 </div>
 
-                {/* Badges */}
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                   <Badge {...STATUS_CFG[c.status] || { color: '#64748b', bg: 'transparent', label: c.status }} />
                   {c.status === 'triado' && c.triagem_prioridade && (
@@ -295,7 +336,6 @@ export default function Triagem() {
                   )}
                 </div>
 
-                {/* Sinais vitais resumidos — apenas triados */}
                 {c.status === 'triado' && (
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', fontSize: '0.74rem', color: '#64748b' }}>
                     {c.triagem_pressao       && <span>🩸 {c.triagem_pressao}</span>}
@@ -305,14 +345,12 @@ export default function Triagem() {
                   </div>
                 )}
 
-                {/* Botões */}
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  {/* Botão PDF — sempre visível, estilo inline garantido */}
                   <button
                     style={btnPdfStyle(gerando)}
                     onClick={() => gerarPDF(c)}
                     disabled={gerando}
-                    title='Gerar PDF com dados da triagem'
+                    title='Gerar PDF individual da triagem'
                   >
                     📄 {gerando ? 'Gerando...' : 'Gerar PDF'}
                   </button>
@@ -356,7 +394,6 @@ export default function Triagem() {
             boxShadow: '0 32px 64px rgba(0,0,0,0.7)',
           }}>
 
-            {/* Cabeçalho do modal */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
               <div>
                 <h2 style={{ color: '#f1f5f9', fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>
@@ -373,13 +410,8 @@ export default function Triagem() {
               </div>
 
               <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                {/* Botão PDF no modal — sempre visível */}
                 <button
-                  style={{
-                    ...btnPdfStyle(gerando),
-                    fontSize: '0.9rem',
-                    padding: '8px 16px',
-                  }}
+                  style={{ ...btnPdfStyle(gerando), fontSize: '0.9rem', padding: '8px 16px' }}
                   onClick={() => gerarPDF(consultaModal, false)}
                   disabled={gerando}
                   title='Gerar PDF da triagem'
@@ -398,8 +430,6 @@ export default function Triagem() {
             </div>
 
             <form onSubmit={salvarTriagem}>
-
-              {/* Sinais Vitais */}
               <div style={{ marginBottom: '22px' }}>
                 {sectionTitle('🩺 Sinais Vitais')}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
@@ -425,7 +455,6 @@ export default function Triagem() {
                 </div>
               </div>
 
-              {/* Prioridade */}
               <div style={{ marginBottom: '20px' }}>
                 {sectionTitle('🚦 Classificação de Risco')}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '8px' }}>
@@ -449,7 +478,6 @@ export default function Triagem() {
                 </div>
               </div>
 
-              {/* Queixa */}
               <div style={{ marginBottom: '16px' }}>
                 {sectionTitle('💬 Queixa e Observações')}
                 <input
@@ -471,7 +499,6 @@ export default function Triagem() {
                 />
               </div>
 
-              {/* Ações */}
               <div style={{ display: 'flex', gap: '10px', paddingTop: '4px' }}>
                 <button
                   type='submit'
