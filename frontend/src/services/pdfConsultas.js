@@ -36,6 +36,11 @@ export function gerarPdfConsultas({ clinica, consultas, nomePacienteFn, nomeMedi
     </tr>
   `).join('')
 
+  // Bloco do logo (lado esquerdo do cabeçalho)
+  const logoHtml = clinica?.logo_url
+    ? `<img src="${clinica.logo_url}" alt="Logo" style="height:48px;max-width:120px;object-fit:contain;margin-right:10px;vertical-align:middle;" />`
+    : ''
+
   const html = `
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -45,41 +50,29 @@ export function gerarPdfConsultas({ clinica, consultas, nomePacienteFn, nomeMedi
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; background: #fff; padding: 20px 28px; }
-
-    /* Cabeçalho */
     .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1e40af; padding-bottom: 12px; margin-bottom: 16px; }
+    .header-esq { display: flex; align-items: center; gap: 8px; }
     .header-logo { font-size: 22px; font-weight: 900; color: #1e40af; letter-spacing: -0.5px; }
     .header-logo span { color: #3b82f6; }
     .header-clinica { text-align: right; }
     .header-clinica .nome { font-size: 13px; font-weight: 700; color: #1e293b; }
     .header-clinica .detalhe { font-size: 10px; color: #64748b; margin-top: 2px; }
-
-    /* Subtítulo do relatório */
     .relatorio-titulo { font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
     .relatorio-meta { font-size: 10px; color: #64748b; margin-bottom: 14px; }
     .relatorio-meta span { margin-right: 16px; }
-
-    /* Tabela */
     table { width: 100%; border-collapse: collapse; margin-top: 4px; }
     th { background: #1e40af; color: #fff; padding: 7px 8px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
     td { padding: 6px 8px; font-size: 10.5px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
     tr.impar td { background: #f8fafc; }
     tr:last-child td { border-bottom: none; }
-
-    /* Badges de status */
     .badge { padding: 2px 8px; border-radius: 20px; font-size: 9.5px; font-weight: 700; white-space: nowrap; }
     .badge-agendada   { background: #dbeafe; color: #1e40af; }
     .badge-confirmada { background: #dcfce7; color: #15803d; }
     .badge-em_triagem { background: #fef9c3; color: #92400e; }
     .badge-triado     { background: #ede9fe; color: #6d28d9; }
     .badge-liberada   { background: #f1f5f9; color: #475569; }
-
-    /* Rodapé */
     .footer { margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 8px; display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8; }
-
-    /* Total */
     .total { margin-top: 10px; text-align: right; font-size: 10px; color: #475569; font-weight: 600; }
-
     @media print {
       body { padding: 10px 16px; }
       @page { margin: 15mm 12mm; size: A4 landscape; }
@@ -88,12 +81,15 @@ export function gerarPdfConsultas({ clinica, consultas, nomePacienteFn, nomeMedi
 </head>
 <body>
   <div class="header">
-    <div class="header-logo">Nexus<span>Med</span></div>
+    <div class="header-esq">
+      ${logoHtml}
+      <div class="header-logo">Nexus<span>Med</span></div>
+    </div>
     <div class="header-clinica">
       <div class="nome">${clinica?.nome || 'Clínica'}</div>
-      ${clinica?.cnpj ? `<div class="detalhe">CNPJ: ${formatarCNPJ(clinica.cnpj)}</div>` : ''}
+      ${clinica?.cnpj    ? `<div class="detalhe">CNPJ: ${formatarCNPJ(clinica.cnpj)}</div>` : ''}
       ${clinica?.endereco ? `<div class="detalhe">${clinica.endereco}</div>` : ''}
-      ${clinica?.cidade ? `<div class="detalhe">${clinica.cidade}${clinica.estado ? ' — ' + clinica.estado : ''}</div>` : ''}
+      ${clinica?.cidade  ? `<div class="detalhe">${clinica.cidade}${clinica.estado ? ' — ' + clinica.estado : ''}</div>` : ''}
       ${clinica?.telefone ? `<div class="detalhe">Tel: ${clinica.telefone}</div>` : ''}
     </div>
   </div>
@@ -109,12 +105,7 @@ export function gerarPdfConsultas({ clinica, consultas, nomePacienteFn, nomeMedi
   <table>
     <thead>
       <tr>
-        <th>Data</th>
-        <th>Horário</th>
-        <th>Paciente</th>
-        <th>Médico</th>
-        <th>Motivo</th>
-        <th>Status</th>
+        <th>Data</th><th>Horário</th><th>Paciente</th><th>Médico</th><th>Motivo</th><th>Status</th>
       </tr>
     </thead>
     <tbody>
@@ -134,10 +125,7 @@ export function gerarPdfConsultas({ clinica, consultas, nomePacienteFn, nomeMedi
 </html>`
 
   const janela = window.open('', '_blank', 'width=1000,height=700')
-  if (!janela) {
-    alert('Permita pop-ups para gerar o PDF.')
-    return
-  }
+  if (!janela) { alert('Permita pop-ups para gerar o PDF.'); return }
   janela.document.write(html)
   janela.document.close()
 }
