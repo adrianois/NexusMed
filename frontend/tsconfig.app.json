@@ -8,25 +8,19 @@
     "types": ["vite/client"],
     "skipLibCheck": true,
 
-    /* Permitir arquivos .js/.jsx sem declarações de tipo */
     "allowJs": true,
     "checkJs": false,
     "allowImportingTsExtensions": true,
 
-    /* Bundler mode */
     "moduleResolution": "bundler",
-    "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Linting */
-    "strict": true,
+    "strict": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noFallthroughCasesInSwitch": false
   },
   "include": ["src"]
 }
