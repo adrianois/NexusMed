@@ -3,6 +3,7 @@ import api from '../api'
 import PageLayout from '../components/PageLayout'
 import { generateTriagemPDF } from '../utils/generateTriagemPDF'
 import { generateTriagemListaPDF } from '../utils/generateTriagemListaPDF'
+import { useAuth } from '../context/AuthContext'
 import './InnerPage.css'
 
 const PRIORIDADE_CFG = {
@@ -84,9 +85,11 @@ function ToastSucesso({ mensagem, onClose }) {
 }
 
 export default function Triagem() {
+  const { user } = useAuth()
   const [consultas,    setConsultas]    = useState([])
   const [pacientes,    setPacientes]    = useState([])
   const [medicos,      setMedicos]      = useState([])
+  const [clinica,      setClinica]      = useState(null)
   const [loading,      setLoading]      = useState(true)
   const [dataSel,      setDataSel]      = useState(new Date().toISOString().split('T')[0])
   const [modalId,      setModalId]      = useState(null)
@@ -116,6 +119,27 @@ export default function Triagem() {
   }, [dataSel])
 
   useEffect(() => { carregar() }, [carregar])
+
+  // Busca dados da clínica — mesmo padrão de Consultas.jsx
+  useEffect(() => {
+    const buscarClinica = async () => {
+      try {
+        if (user?.clinica_id) {
+          const r = await api.get(`/clinicas/${user.clinica_id}`)
+          setClinica(r.data)
+          return
+        }
+        const r = await api.get('/clinicas')
+        if (r.data?.length > 0) setClinica(r.data[0])
+      } catch {
+        try {
+          const r = await api.get('/clinicas')
+          if (r.data?.length > 0) setClinica(r.data[0])
+        } catch { /* silencioso */ }
+      }
+    }
+    buscarClinica()
+  }, [user])
 
   const nomePaciente  = id => pacientes.find(p => p.id === id)?.nome || '—'
   const nomeMedico    = id => medicos.find(m => m.id === id)?.nome  || '—'
@@ -160,7 +184,7 @@ export default function Triagem() {
   const gerarListaPDF = () => {
     try {
       setGerandoLista(true)
-      generateTriagemListaPDF(consultasFiltradas, pacientes, medicos, dataSel, filtroStatus)
+      generateTriagemListaPDF(consultasFiltradas, pacientes, medicos, dataSel, filtroStatus, clinica)
       const total = consultasFiltradas.length
       setToast(`Relatório com ${total} registro(s) gerado com sucesso!`)
     } catch (err) {

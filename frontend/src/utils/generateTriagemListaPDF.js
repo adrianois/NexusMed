@@ -1,9 +1,9 @@
 /**
  * Gera PDF da lista de triagem usando window.print() com CSS de impressão.
- * Segue o MESMO PADRÃO da página de Consultas.
+ * Segue o MESMO PADRÃO da página de Consultas (pdfConsultas.js).
  * Não requer nenhuma biblioteca externa (não usa jsPDF/autoTable).
  */
-export function generateTriagemListaPDF(consultas, pacientes, medicos, dataSel, filtroStatus) {
+export function generateTriagemListaPDF(consultas, pacientes, medicos, dataSel, filtroStatus, clinica) {
   const STATUS_LABEL = {
     confirmada: 'Aguardando',
     em_triagem: 'Em Triagem',
@@ -77,8 +77,8 @@ export function generateTriagemListaPDF(consultas, pacientes, medicos, dataSel, 
 
     /* Subtítulo do relatório */
     .relatorio-titulo { font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
-    .relatorio-meta { font-size: 9px; color: #64748b; margin-bottom: 14px; }
-    .relatorio-meta span { margin-right: 12px; }
+    .relatorio-meta { font-size: 10px; color: #64748b; margin-bottom: 14px; }
+    .relatorio-meta span { margin-right: 16px; }
 
     /* Tabela */
     table { width: 100%; border-collapse: collapse; margin-top: 4px; }
@@ -100,7 +100,7 @@ export function generateTriagemListaPDF(consultas, pacientes, medicos, dataSel, 
     .badge-prio-emergencia  { background: #fecaca; color: #991b1b; }
 
     /* Rodapé */
-    .footer { margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 8px; display: flex; justify-content: space-between; font-size: 8px; color: #94a3b8; }
+    .footer { margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 8px; display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8; }
 
     /* Total */
     .total { margin-top: 10px; text-align: right; font-size: 9px; color: #475569; font-weight: 600; }
@@ -115,7 +115,11 @@ export function generateTriagemListaPDF(consultas, pacientes, medicos, dataSel, 
   <div class="header">
     <div class="header-logo">Nexus<span>Med</span></div>
     <div class="header-clinica">
-      <div class="nome">Clínica</div>
+      <div class="nome">${clinica?.nome || 'Clínica'}</div>
+      ${clinica?.cnpj ? `<div class="detalhe">CNPJ: ${formatarCNPJ(clinica.cnpj)}</div>` : ''}
+      ${clinica?.endereco ? `<div class="detalhe">${clinica.endereco}</div>` : ''}
+      ${clinica?.cidade ? `<div class="detalhe">${clinica.cidade}${clinica.estado ? ' — ' + clinica.estado : ''}</div>` : ''}
+      ${clinica?.telefone ? `<div class="detalhe">Tel: ${clinica.telefone}</div>` : ''}
     </div>
   </div>
 
